@@ -6,18 +6,95 @@ import os
 from io import StringIO
 import pandas as pd
 from dotenv import load_dotenv
+import time
+from datetime import datetime, timedelta
 
 load_dotenv()
 
 app = Flask(__name__)
 
+# Rate limiting configuration
+RATE_LIMIT_PERIOD = 60  # 1 minute in seconds
+MAX_REQUESTS = 10  # Maximum requests per minute
+request_timestamps = []
+
+def check_rate_limit():
+    """Check if we're within rate limits"""
+    global request_timestamps
+    current_time = datetime.now()
+    
+    # Remove timestamps older than our period
+    request_timestamps = [ts for ts in request_timestamps 
+                        if current_time - ts < timedelta(seconds=RATE_LIMIT_PERIOD)]
+    
+    # Check if we're at the limit
+    if len(request_timestamps) >= MAX_REQUESTS:
+        return False
+    
+    # Add current timestamp and return True
+    request_timestamps.append(current_time)
+    return True
+
 # Configure AWS credentials
-bedrock = boto3.client(
-    service_name='bedrock-agent-runtime',
-    region_name='us-east-1',  # Replace with your region
-    aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
-    aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY')
-)
+try:
+    bedrock = boto3.client(
+        service_name='bedrock-agent-runtime',
+        region_name='us-east-2',  # Changed back to us-east-2 to match the agent's ARN
+        aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+        aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY')
+    )
+    
+    print("AWS Configuration:")
+    print(f"Region: us-east-2")
+    print(f"Agent ID: {os.getenv('BEDROCK_AGENT_ID')}")
+    print(f"Agent Alias ID: {os.getenv('BEDROCK_AGENT_ALIAS_ID')}")
+    
+    # Verify the agent exists
+    def verify_agent():
+        try:
+            agent_id = os.getenv('BEDROCK_AGENT_ID')
+            agent_alias_id = os.getenv('BEDROCK_AGENT_ALIAS_ID')
+            
+            if not agent_id or not agent_alias_id:
+                print("Missing Agent ID or Alias ID")
+                return False
+            
+            print(f"\nAttempting to verify agent:")
+            print(f"Agent ID: {agent_id}")
+            print(f"Agent Alias ID: {agent_alias_id}")
+            
+            # Try to invoke agent with a simple test
+            response = bedrock.invoke_agent(
+                agentId=agent_id,
+                agentAliasId=agent_alias_id,
+                sessionId='test-session',
+                inputText='test'
+            )
+            
+            print("Successfully connected to Bedrock agent")
+            return True
+            
+        except Exception as e:
+            error_message = str(e)
+            print("\nAgent Verification Error:")
+            print(f"Error Type: {type(e).__name__}")
+            print(f"Error Message: {error_message}")
+            
+            if 'ResourceNotFoundException' in error_message:
+                print("\nPossible issues:")
+                print("1. Agent ID or Alias ID might be incorrect")
+                print("2. Agent might not be deployed in us-east-2")
+                print("3. Agent might not be in PREPARED state")
+            elif 'AccessDeniedException' in error_message:
+                print("\nPossible issues:")
+                print("1. AWS credentials might not have proper permissions")
+                print("2. IAM role might need bedrock:InvokeAgent permission")
+            
+            return False
+
+except Exception as e:
+    print(f"Error configuring Bedrock client: {str(e)}")
+    bedrock = None
 
 def process_csv(df):
     """Process and organize the CSV data"""
@@ -34,38 +111,33 @@ def process_csv(df):
             'Quantity': 0,
             'Price': 0,
             'Amount': 0,
-            'Fees & Comm': 0  # Note the spelling with two 'm's
+            'Fees & Com': 0
         })
         
-        # Standardize column names - handle variations in fees column name
+        # Standardize column names
         if 'Fees & Comm' in processed_df.columns:
             processed_df = processed_df.rename(columns={'Fees & Comm': 'Fees & Com'})
         
-        # Convert numeric columns first - before any other processing
+        # Convert numeric columns
         numeric_columns = ['Quantity', 'Price', 'Amount', 'Fees & Com']
         for col in numeric_columns:
             if col in processed_df.columns:
-                # Remove any currency symbols and convert to numeric
                 processed_df[col] = processed_df[col].astype(str).str.replace('$', '').str.replace(',', '').str.strip()
-                # Handle parentheses for negative numbers
                 processed_df[col] = processed_df[col].apply(lambda x: str(x).replace('(', '-').replace(')', '') if isinstance(x, str) else x)
                 processed_df[col] = pd.to_numeric(processed_df[col], errors='coerce').fillna(0)
 
-        # Handle "as of" dates and standardize date format
+        # Handle dates
         def standardize_date(date_str):
             if pd.isna(date_str) or date_str == '':
                 return None
-            # Remove any "as of" and get the first date
             date_str = str(date_str).split('as of')[0].strip()
             try:
-                # Parse and standardize date format
                 return pd.to_datetime(date_str).strftime('%m/%d/%Y')
             except:
                 return date_str
 
         processed_df['Posted_Date'] = processed_df['Date'].apply(standardize_date)
         
-        # Handle transaction date (date after "as of" if exists)
         def get_transaction_date(date_str):
             if pd.isna(date_str) or date_str == '':
                 return None
@@ -79,12 +151,11 @@ def process_csv(df):
 
         processed_df['Transaction_Date'] = processed_df['Date'].apply(get_transaction_date)
         
-        # Extract option details from Symbol column
+        # Extract option details
         def extract_option_details(symbol):
             if pd.isna(symbol) or symbol == '':
                 return pd.Series({'Ticker': '', 'Expiry': None, 'Strike': None, 'Option_Type': None})
             
-            # Try to extract option details
             match = pd.Series(symbol).str.extract(
                 r'(\w+)\s*(?:(\d{2}/\d{2}/\d{4})\s*[$]?(\d+(?:\.\d+)?)\s*([PC]|PUT|CALL))?'
             ).iloc[0]
@@ -96,67 +167,48 @@ def process_csv(df):
                 'Option_Type': match[3] if pd.notna(match[3]) else None
             })
 
-        # Apply the extraction to each row
         option_details = processed_df['Symbol'].apply(extract_option_details)
         processed_df[['Ticker', 'Expiry', 'Strike', 'Option_Type']] = option_details
         
-        # Map different option type formats to Put/Call
+        # Map option types
         option_type_map = {'P': 'Put', 'C': 'Call', 'PUT': 'Put', 'CALL': 'Call'}
         processed_df['Option_Type'] = processed_df['Option_Type'].map(option_type_map)
         
-        # Create the Type column based on Action and Option_Type
+        # Create Type column
         def determine_type(row):
             action = str(row['Action']).strip()
             option_type = str(row['Option_Type']).strip() if pd.notna(row['Option_Type']) else ''
             
-            # Handle special actions first
             if action in ['Expired', 'Assigned', 'Journal', 'Exchange or Exercise']:
                 return f"{option_type} {action}" if option_type else action
             
-            # Handle dividend and interest actions
             if action in ['Qualified Dividend', 'Cash Dividend']:
                 return 'Dividend'
             if action in ['Credit Interest', 'Margin Interest']:
                 return 'Interest'
             
-            # Handle Buy/Sell actions
             if 'Sell' in action:
                 if option_type == 'Put':
                     return 'Put Sell'
                 elif option_type == 'Call':
                     return 'Call Sell'
-                return 'Stock Sell'  # No option type means stock transaction
+                return 'Stock Sell'
             
             if 'Buy' in action:
                 if option_type == 'Put':
                     return 'Put Buy'
                 elif option_type == 'Call':
                     return 'Call Buy'
-                return 'Stock Buy'  # No option type means stock transaction
+                return 'Stock Buy'
             
-            return action  # Default to original action if no match
-        
+            return action
+
         processed_df['Type'] = processed_df.apply(determine_type, axis=1)
         
-        # Create Status column based on expiry date
-        def determine_status(row):
-            if pd.isna(row['Expiry']):
-                if 'Buy' in str(row['Action']) or 'Sell' in str(row['Action']):
-                    return 'Stock Trade'
-                return row['Action']  # Use Action for non-trade rows
-            try:
-                expiry_date = pd.to_datetime(row['Expiry'])
-                current_date = pd.Timestamp.now()
-                return 'Closed' if expiry_date < current_date else 'Open'
-            except:
-                return 'Unknown'
-        
+        # Create Status column with new rules
         processed_df['Status'] = processed_df.apply(determine_status, axis=1)
         
-        # Calculate total amount including fees
-        processed_df['Total_Amount'] = processed_df['Amount'] - processed_df['Fees & Com']
-        
-        # Fill NaN values in the processed columns
+        # Fill NaN values in processed columns
         processed_df = processed_df.fillna({
             'Posted_Date': '',
             'Transaction_Date': '',
@@ -165,24 +217,24 @@ def process_csv(df):
             'Option_Type': '',
             'Strike': 0,
             'Type': '',
-            'Status': ''
+            'Status': 'Open'  # Default status is Open
         })
         
-        # Organize columns in the specified order
+        # Organize columns
         columns = [
-            'Posted_Date', 'Transaction_Date',  # Date columns
-            'Action',                           # Action column
-            'Ticker', 'Expiry', 'Option_Type', 'Strike',  # Summary columns
-            'Type', 'Status',                   # New columns
-            'Quantity', 'Price', 'Amount', 'Fees & Com', 'Total_Amount'  # Additional info
+            'Posted_Date', 'Transaction_Date',
+            'Action',
+            'Ticker', 'Expiry', 'Option_Type', 'Strike',
+            'Type', 'Status',
+            'Quantity', 'Price', 'Fees & Com', 'Amount'
         ]
         
         # Remove Description column if it exists
         if 'Description' in processed_df.columns:
             processed_df = processed_df.drop('Description', axis=1)
         
-        # Format numeric columns to 2 decimal places
-        numeric_columns = ['Strike', 'Price', 'Amount', 'Fees & Com', 'Total_Amount']
+        # Format numeric columns
+        numeric_columns = ['Strike', 'Price', 'Amount', 'Fees & Com']
         for col in numeric_columns:
             if col in processed_df.columns:
                 processed_df[col] = processed_df[col].round(2)
@@ -194,6 +246,18 @@ def process_csv(df):
         print(f"DataFrame columns: {df.columns.tolist()}")
         print(f"First row: {df.iloc[0].to_dict()}")
         raise
+
+def determine_status(row):
+    """Determine the status of a trade based on expiry date"""
+    if pd.isna(row['Expiry']) or row['Expiry'] == '':
+        return 'Open'
+    
+    try:
+        expiry_date = pd.to_datetime(row['Expiry'])
+        current_date = pd.Timestamp.now()
+        return 'Closed' if expiry_date < current_date else 'Open'
+    except:
+        return 'Open'  # Default to Open if there's any error parsing the date
 
 @app.route('/')
 def index():
@@ -228,8 +292,8 @@ def upload_file():
         # Convert processed DataFrame back to CSV
         processed_csv = processed_df.to_csv(index=False)
         
-        # Calculate total amount properly
-        total_amount = processed_df['Total_Amount'].sum()
+        # Calculate summary using the original Amount column
+        total_amount = processed_df['Amount'].sum()
         
         # Prepare summary data with proper date formatting
         summary_data = {
@@ -253,43 +317,125 @@ def upload_file():
 @app.route('/query', methods=['POST'])
 def query_data():
     try:
+        if not bedrock:
+            return jsonify({'error': 'Bedrock client not configured properly'}), 500
+
+        # Check rate limit
+        if not check_rate_limit():
+            wait_time = RATE_LIMIT_PERIOD - (datetime.now() - request_timestamps[0]).total_seconds()
+            return jsonify({
+                'error': f'Rate limit exceeded. Please wait {int(wait_time)} seconds before trying again.',
+                'retry_after': int(wait_time)
+            }), 429
+
         data = request.json
         query = data.get('query', '')
         csv_data = data.get('data', {}).get('processed_csv', '')
         
         if not query or not csv_data:
             return jsonify({'error': 'Missing query or data'}), 400
-        
-        # Convert CSV back to DataFrame
-        df = pd.read_csv(StringIO(csv_data))
-        
-        # Process the query using Bedrock agent
+
         try:
-            response = bedrock.invoke_agent(
-                agentId=os.getenv('BEDROCK_AGENT_ID'),
-                agentAliasId=os.getenv('BEDROCK_AGENT_ALIAS_ID'),
-                sessionId='query-session',
-                inputText=json.dumps({
-                    'query': query,
-                    'trading_data': csv_data
-                })
-            )
+            agent_id = os.getenv('BEDROCK_AGENT_ID')
+            agent_alias_id = os.getenv('BEDROCK_AGENT_ALIAS_ID')
+
+            if not agent_id or not agent_alias_id:
+                return jsonify({'error': 'Missing Bedrock agent configuration'}), 500
+
+            print(f"\nProcessing query request:")
+            print(f"Query: {query}")
+            print(f"Agent ID: {agent_id}")
+            print(f"Agent Alias ID: {agent_alias_id}")
+            print(f"CSV Data Available: {'Yes' if csv_data else 'No'}")
+
+            # Add exponential backoff retry logic
+            max_retries = 3
+            retry_count = 0
+            while retry_count < max_retries:
+                try:
+                    input_text = {
+                        "query": query,
+                        "trading_data": csv_data
+                    }
+                    input_json = json.dumps(input_text)
+                    
+                    print(f"Sending request to Bedrock agent (attempt {retry_count + 1})")
+                    
+                    response = bedrock.invoke_agent(
+                        agentId=agent_id,
+                        agentAliasId=agent_alias_id,
+                        sessionId=f'trading-session-{int(time.time())}',  # Unique session ID
+                        inputText=input_json,
+                        enableTrace=True
+                    )
+                    
+                    break  # If successful, exit retry loop
+                    
+                except Exception as e:
+                    if 'ThrottlingException' in str(e) and retry_count < max_retries - 1:
+                        retry_count += 1
+                        wait_time = (2 ** retry_count)  # Exponential backoff
+                        print(f"Rate limited, waiting {wait_time} seconds before retry...")
+                        time.sleep(wait_time)
+                    else:
+                        raise  # Re-raise the exception if we're out of retries
             
-            # Process agent response
-            if isinstance(response, dict):
-                response_text = response.get('completion', '')
-            else:
-                response_text = str(response)
+            print("\nReceived response from Bedrock agent")
             
-            return jsonify({'response': response_text})
+            # Process the EventStream response
+            full_response = ""
+            for event in response['completion']:
+                if 'chunk' in event:
+                    chunk_obj = event['chunk']
+                    if 'bytes' in chunk_obj:
+                        chunk_text = chunk_obj['bytes'].decode('utf-8')
+                        print(f"Received chunk: {chunk_text}")
+                        try:
+                            chunk_data = json.loads(chunk_text)
+                            if 'content' in chunk_data:
+                                full_response += chunk_data['content']
+                        except json.JSONDecodeError:
+                            full_response += chunk_text
+
+            if not full_response:
+                full_response = "I apologize, but I couldn't process that query. Please try rephrasing your question."
+
+            print(f"\nFinal response: {full_response}")
             
+            return jsonify({
+                'success': True,
+                'response': full_response
+            })
+
         except Exception as e:
-            print("Query Error:", str(e))
-            return jsonify({'error': f'Error processing query: {str(e)}'}), 500
+            error_message = str(e)
+            print(f"\nBedrock API Error:")
+            print(f"Error Type: {type(e).__name__}")
+            print(f"Error Message: {error_message}")
             
+            if 'ThrottlingException' in error_message:
+                return jsonify({
+                    'error': 'Request rate limit exceeded. Please try again in a few seconds.',
+                    'retry_after': 5
+                }), 429
+            elif 'ResourceNotFoundException' in error_message:
+                return jsonify({
+                    'error': 'The Bedrock agent could not be found. Please verify your Agent ID and Alias ID are correct and the agent is deployed in us-east-2.'
+                }), 404
+            elif 'AccessDeniedException' in error_message:
+                return jsonify({
+                    'error': 'Access denied. Please check your AWS credentials and IAM permissions for Bedrock.'
+                }), 403
+            else:
+                return jsonify({
+                    'error': f'Error processing query: {error_message}'
+                }), 500
+
     except Exception as e:
-        print("Server Error:", str(e))
-        return jsonify({'error': f'Server error: {str(e)}'}), 500
+        print(f"Query Error: {str(e)}")
+        return jsonify({
+            'error': f'Error processing request: {str(e)}'
+        }), 500
 
 if __name__ == '__main__':
     app.run(debug=True)

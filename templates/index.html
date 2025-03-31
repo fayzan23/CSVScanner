@@ -6,129 +6,121 @@
 </head>
 <body>
     <div class="container">
-        <div class="upload-container">
-            <h1>Trading Data Analyzer</h1>
-            <div class="upload-section">
-                <form id="uploadForm">
-                    <div class="file-input">
-                        <label for="file">Select your CSV file:</label>
-                        <input type="file" id="file" name="file" accept=".csv" required>
-                    </div>
-                    <button type="submit" class="submit-button">Upload and Analyze</button>
-                </form>
-                <div id="loading" class="loading" style="display: none;">
-                    Processing your file...
-                </div>
-            </div>
-            
-            <div id="error" class="error" style="display: none;"></div>
-            
-            <div id="results" class="results" style="display: none;">
-                <h2>Analysis Results</h2>
-                <div class="summary">
-                    <p>Total Trades: <span id="totalTrades"></span></p>
-                    <p>Symbols Traded: <span id="symbolsTraded"></span></p>
-                    <p>Date Range: <span id="dateRange"></span></p>
-                    <p>Total Amount: <span id="totalAmount"></span></p>
-                    <p>Option Types: <span id="optionTypes"></span></p>
-                </div>
-                <button id="downloadBtn" class="download-button">Download Processed CSV</button>
+        <h1>Trading Data Analyzer</h1>
+        
+        <!-- Upload Section -->
+        <div class="upload-section">
+            <h2>Upload Trading Data</h2>
+            <form id="uploadForm" enctype="multipart/form-data">
+                <input type="file" id="csvFile" accept=".csv" required>
+                <button type="submit">Upload and Process</button>
+            </form>
+        </div>
 
-                <!-- New Query Section -->
-                <div class="query-section">
-                    <h3>Ask Questions About Your Trading Data</h3>
-                    <div class="query-input">
-                        <input type="text" id="queryInput" placeholder="Example: How many trades in QQQ?" class="query-textbox">
-                        <button id="queryBtn" class="query-button">Ask</button>
-                    </div>
-                    <div class="query-examples">
-                        <p>Example questions:</p>
-                        <ul>
-                            <li>"How many trades in QQQ?"</li>
-                            <li>"What's my total profit from PUT options?"</li>
-                            <li>"Show trades between 3/1/2025 and 3/15/2025"</li>
-                        </ul>
-                    </div>
-                    <div id="queryResult" class="query-result" style="display: none;"></div>
+        <!-- Results Section -->
+        <div id="results" style="display: none;">
+            <h2>Processing Results</h2>
+            
+            <!-- Summary Section -->
+            <div class="summary-section">
+                <h3>Summary</h3>
+                <div id="summary"></div>
+            </div>
+
+            <!-- Download Section -->
+            <div class="download-section">
+                <h3>Processed Data</h3>
+                <button id="downloadBtn">Download Processed CSV</button>
+            </div>
+
+            <!-- Query Section -->
+            <div class="query-section">
+                <h3>Query Your Data</h3>
+                <div class="query-input">
+                    <textarea id="queryInput" placeholder="Ask questions about your trading data..."></textarea>
+                    <button id="submitQuery">Submit Query</button>
                 </div>
+                <div class="query-examples">
+                    <h4>Example Queries:</h4>
+                    <ul>
+                        <li>Show me all PUT option trades</li>
+                        <li>What was my most profitable trade?</li>
+                        <li>How many trades did I make in QQQ?</li>
+                        <li>List all trades with amount greater than $1000</li>
+                        <li>Show me all open positions</li>
+                    </ul>
+                </div>
+                <div id="queryResult" class="query-result"></div>
             </div>
         </div>
+
+        <!-- Error Display -->
+        <div id="error" class="error" style="display: none;"></div>
     </div>
 
     <script>
+        let processedData = null;
+
         document.getElementById('uploadForm').addEventListener('submit', async (e) => {
             e.preventDefault();
+            const fileInput = document.getElementById('csvFile');
+            const file = fileInput.files[0];
             
+            if (!file) {
+                showError('Please select a file');
+                return;
+            }
+
             const formData = new FormData();
-            const fileInput = document.getElementById('file');
-            formData.append('file', fileInput.files[0]);
-            
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('error').style.display = 'none';
-            document.getElementById('results').style.display = 'none';
-            
+            formData.append('file', file);
+
             try {
                 const response = await fetch('/upload', {
                     method: 'POST',
                     body: formData
                 });
-                
-                const data = await response.json();
-                
-                if (response.ok) {
-                    document.getElementById('totalTrades').textContent = data.summary.total_trades;
-                    document.getElementById('symbolsTraded').textContent = data.summary.symbols_traded.join(', ');
-                    document.getElementById('dateRange').textContent = data.summary.date_range;
-                    document.getElementById('totalAmount').textContent = data.summary.total_amount;
-                    
-                    // Format option types
-                    const optionTypes = Object.entries(data.summary.option_types)
-                        .map(([type, count]) => `${type}: ${count}`)
-                        .join(', ');
-                    document.getElementById('optionTypes').textContent = optionTypes;
-                    
-                    window.processedCsv = data.processed_csv;
-                    window.currentData = data;  // Store data for queries
-                    
-                    document.getElementById('results').style.display = 'block';
-                } else {
-                    throw new Error(data.error);
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.error || 'Upload failed');
                 }
+
+                processedData = result;
+                displayResults(result);
             } catch (error) {
-                document.getElementById('error').textContent = error.message;
-                document.getElementById('error').style.display = 'block';
-            } finally {
-                document.getElementById('loading').style.display = 'none';
+                showError(error.message);
             }
         });
 
         document.getElementById('downloadBtn').addEventListener('click', () => {
-            if (window.processedCsv) {
-                const blob = new Blob([window.processedCsv], { type: 'text/csv' });
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'processed_trading_data.csv';
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
-            }
+            if (!processedData) return;
+
+            const blob = new Blob([processedData.processed_csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'processed_trading_data.csv';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
         });
 
-        // New Query Handler
-        document.getElementById('queryBtn').addEventListener('click', async () => {
-            const query = document.getElementById('queryInput').value;
-            const queryResult = document.getElementById('queryResult');
+        document.getElementById('submitQuery').addEventListener('click', async () => {
+            const queryInput = document.getElementById('queryInput');
+            const query = queryInput.value.trim();
             
             if (!query) {
-                alert('Please enter a question about your trading data');
+                showError('Please enter a query');
                 return;
             }
-            
-            queryResult.textContent = 'Processing query...';
-            queryResult.style.display = 'block';
-            
+
+            if (!processedData) {
+                showError('Please upload and process data first');
+                return;
+            }
+
             try {
                 const response = await fetch('/query', {
                     method: 'POST',
@@ -137,21 +129,53 @@
                     },
                     body: JSON.stringify({
                         query: query,
-                        data: window.currentData
+                        data: processedData
                     })
                 });
-                
+
                 const result = await response.json();
-                
-                if (response.ok) {
-                    queryResult.textContent = result.response;
-                } else {
-                    throw new Error(result.error);
+
+                if (!response.ok) {
+                    throw new Error(result.error || 'Query failed');
                 }
+
+                displayQueryResult(result.response);
             } catch (error) {
-                queryResult.textContent = `Error: ${error.message}`;
+                showError(error.message);
             }
         });
+
+        function displayResults(data) {
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('results').style.display = 'block';
+
+            // Display summary
+            const summaryHtml = `
+                <p><strong>Total Trades:</strong> ${data.summary.total_trades}</p>
+                <p><strong>Symbols Traded:</strong> ${data.summary.symbols_traded.join(', ')}</p>
+                <p><strong>Date Range:</strong> ${data.summary.date_range}</p>
+                <p><strong>Total Amount:</strong> ${data.summary.total_amount}</p>
+                <p><strong>Option Types:</strong></p>
+                <ul>
+                    ${Object.entries(data.summary.option_types)
+                        .map(([type, count]) => `<li>${type}: ${count}</li>`)
+                        .join('')}
+                </ul>
+            `;
+            document.getElementById('summary').innerHTML = summaryHtml;
+        }
+
+        function displayQueryResult(response) {
+            const resultDiv = document.getElementById('queryResult');
+            resultDiv.innerHTML = `<p class="query-response">${response}</p>`;
+            resultDiv.style.display = 'block';
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
     </script>
 </body>
 </html> 
