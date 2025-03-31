@@ -1,0 +1,119 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Trading Data Analysis API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/analyze-trades": {
+      "post": {
+        "summary": "Analyze trading data",
+        "operationId": "analyzeTrades",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "symbol": {
+                    "type": "string",
+                    "description": "Stock symbol to analyze"
+                  },
+                  "optionType": {
+                    "type": "string",
+                    "enum": ["PUT", "CALL", "ALL"],
+                    "description": "Type of options to analyze"
+                  },
+                  "dateRange": {
+                    "type": "object",
+                    "properties": {
+                      "startDate": {
+                        "type": "string",
+                        "format": "date"
+                      },
+                      "endDate": {
+                        "type": "string",
+                        "format": "date"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Trading analysis results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "totalTrades": {"type": "integer"},
+                    "profitLoss": {"type": "number"},
+                    "winRate": {"type": "number"},
+                    "averageReturn": {"type": "number"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/calculate-statistics": {
+      "post": {
+        "summary": "Calculate trading statistics",
+        "operationId": "calculateStats",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "metric": {
+                    "type": "string",
+                    "enum": ["profit", "volume", "win_rate"],
+                    "description": "Type of statistic to calculate"
+                  },
+                  "groupBy": {
+                    "type": "string",
+                    "enum": ["symbol", "option_type", "month"],
+                    "description": "How to group the statistics"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Statistical analysis results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "group": {"type": "string"},
+                          "value": {"type": "number"}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+} 

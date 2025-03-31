@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Trading Data Analyzer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="upload-container">
+            <h1>Trading Data Analyzer</h1>
+            <div class="upload-section">
+                <form id="uploadForm">
+                    <div class="file-input">
+                        <label for="file">Select your CSV file:</label>
+                        <input type="file" id="file" name="file" accept=".csv" required>
+                    </div>
+                    <button type="submit" class="submit-button">Upload and Analyze</button>
+                </form>
+                <div id="loading" class="loading" style="display: none;">
+                    Processing your file...
+                </div>
+            </div>
+            
+            <div id="error" class="error" style="display: none;"></div>
+            
+            <div id="results" class="results" style="display: none;">
+                <h2>Analysis Results</h2>
+                <div class="summary">
+                    <p>Total Trades: <span id="totalTrades"></span></p>
+                    <p>Symbols Traded: <span id="symbolsTraded"></span></p>
+                    <p>Date Range: <span id="dateRange"></span></p>
+                    <p>Total Amount: <span id="totalAmount"></span></p>
+                    <p>Option Types: <span id="optionTypes"></span></p>
+                </div>
+                <button id="downloadBtn" class="download-button">Download Processed CSV</button>
+
+                <!-- New Query Section -->
+                <div class="query-section">
+                    <h3>Ask Questions About Your Trading Data</h3>
+                    <div class="query-input">
+                        <input type="text" id="queryInput" placeholder="Example: How many trades in QQQ?" class="query-textbox">
+                        <button id="queryBtn" class="query-button">Ask</button>
+                    </div>
+                    <div class="query-examples">
+                        <p>Example questions:</p>
+                        <ul>
+                            <li>"How many trades in QQQ?"</li>
+                            <li>"What's my total profit from PUT options?"</li>
+                            <li>"Show trades between 3/1/2025 and 3/15/2025"</li>
+                        </ul>
+                    </div>
+                    <div id="queryResult" class="query-result" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            const fileInput = document.getElementById('file');
+            formData.append('file', fileInput.files[0]);
+            
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('results').style.display = 'none';
+            
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('totalTrades').textContent = data.summary.total_trades;
+                    document.getElementById('symbolsTraded').textContent = data.summary.symbols_traded.join(', ');
+                    document.getElementById('dateRange').textContent = data.summary.date_range;
+                    document.getElementById('totalAmount').textContent = data.summary.total_amount;
+                    
+                    // Format option types
+                    const optionTypes = Object.entries(data.summary.option_types)
+                        .map(([type, count]) => `${type}: ${count}`)
+                        .join(', ');
+                    document.getElementById('optionTypes').textContent = optionTypes;
+                    
+                    window.processedCsv = data.processed_csv;
+                    window.currentData = data;  // Store data for queries
+                    
+                    document.getElementById('results').style.display = 'block';
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (error) {
+                document.getElementById('error').textContent = error.message;
+                document.getElementById('error').style.display = 'block';
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        });
+
+        document.getElementById('downloadBtn').addEventListener('click', () => {
+            if (window.processedCsv) {
+                const blob = new Blob([window.processedCsv], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'processed_trading_data.csv';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            }
+        });
+
+        // New Query Handler
+        document.getElementById('queryBtn').addEventListener('click', async () => {
+            const query = document.getElementById('queryInput').value;
+            const queryResult = document.getElementById('queryResult');
+            
+            if (!query) {
+                alert('Please enter a question about your trading data');
+                return;
+            }
+            
+            queryResult.textContent = 'Processing query...';
+            queryResult.style.display = 'block';
+            
+            try {
+                const response = await fetch('/query', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        data: window.currentData
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    queryResult.textContent = result.response;
+                } else {
+                    throw new Error(result.error);
+                }
+            } catch (error) {
+                queryResult.textContent = `Error: ${error.message}`;
+            }
+        });
+    </script>
+</body>
+</html> 
