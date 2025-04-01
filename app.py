@@ -248,16 +248,7 @@ def process_csv(df):
         raise
 
 def determine_status(row):
-    """Determine the status of a trade based on expiry date"""
-    if pd.isna(row['Expiry']) or row['Expiry'] == '':
-        return 'Open'
-    
-    try:
-        expiry_date = pd.to_datetime(row['Expiry'])
-        current_date = pd.Timestamp.now()
-        return 'Closed' if expiry_date < current_date else 'Open'
-    except:
-        return 'Open'  # Default to Open if there's any error parsing the date
+    return 'Closed' if pd.notna(row['Expiry']) and pd.to_datetime(row['Expiry']) < pd.Timestamp.now() else 'Open'
 
 @app.route('/')
 def index():
