@@ -188,6 +188,30 @@ def process_csv(df):
         option_details = processed_df['Symbol'].apply(extract_option_details)
         processed_df[['Ticker', 'Expiry', 'Strike', 'Option_Type']] = option_details
 
+        # Filter out transactions with tickers SGUXX and SNAXX
+        excluded_tickers = ['SGUXX', 'SNAXX']
+        original_count = len(processed_df)
+        processed_df = processed_df[~processed_df['Ticker'].isin(excluded_tickers)]
+        filtered_count = len(processed_df)
+        print(f"Filtered out {original_count - filtered_count} transactions with tickers: {', '.join(excluded_tickers)}")
+
+        # Filter out transactions with specified action types
+        excluded_actions = [
+            'MoneyLink Transfer', 
+            'Credit Interest', 
+            'Exchange',
+            'Exercise',
+            'Margin Interest', 
+            'Options Frwd Split', 
+            'Reinvest Shares', 
+            'Qual Div Reinvest'
+        ]
+        action_count_before = len(processed_df)
+        # Use case-insensitive partial matching to catch variations
+        processed_df = processed_df[~processed_df['Action'].str.contains('|'.join(excluded_actions), case=False, na=False)]
+        action_count_after = len(processed_df)
+        print(f"Filtered out {action_count_before - action_count_after} transactions with excluded action types")
+
         # Map option types
         option_type_map = {'P': 'Put', 'C': 'Call', 'PUT': 'Put', 'CALL': 'Call'}
         processed_df['Option_Type'] = processed_df['Option_Type'].map(option_type_map)
