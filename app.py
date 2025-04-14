@@ -97,16 +97,22 @@ except Exception as e:
     bedrock = None
 
 def determine_status(row):
-    # Check if the transaction type indicates a closed position
-    closed_types = ['expired', 'assigned', 'dividend']
-    transaction_type = str(row['Type']).lower()
+    # Auto-close logic for options and stocks: 
+    # 1. Mark expired, assigned, and dividend transactions as Close
+    # 2. Check if option has expired based on expiry date
+    # 3. The FIFO matching function below will auto-close stock buys/sells
+    action = str(row['Action']).strip()
+    type_val = str(row['Type']).strip()
     
-    # If the transaction type contains any of the closed indicators, mark as Close
-    if any(term in transaction_type for term in closed_types):
+    # Mark expired, assigned, and dividend transactions as Close
+    if type_val in ['Expired', 'Assigned', 'Dividend']:
         return 'Close'
     
-    # Otherwise use the expiry date logic
-    return 'Close' if pd.notna(row['Expiry']) and pd.to_datetime(row['Expiry']) < pd.Timestamp.now() else 'Open'
+    # Check if option has expired
+    if pd.notna(row['Expiry']) and pd.to_datetime(row['Expiry']) < pd.Timestamp.now():
+        return 'Close'
+        
+    return 'Open'
 
 def process_csv(df):
     """Process and organize the CSV data"""
@@ -222,6 +228,10 @@ def process_csv(df):
 
         # Create Status column with new rules
         def determine_status(row):
+            # Auto-close logic for options and stocks: 
+            # 1. Mark expired, assigned, and dividend transactions as Close
+            # 2. Check if option has expired based on expiry date
+            # 3. The FIFO matching function below will auto-close stock buys/sells
             action = str(row['Action']).strip()
             type_val = str(row['Type']).strip()
             
