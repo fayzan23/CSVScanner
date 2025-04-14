@@ -242,9 +242,24 @@ def process_csv(df):
             # Make a copy to avoid modifying the original during iteration
             df_copy = df.copy()
             
-            # Filter only stock transactions
-            stock_buys = df_copy[(df_copy['Type'] == 'Stock Buy')].sort_values('Posted_Date')
-            stock_sells = df_copy[(df_copy['Type'] == 'Stock Sell')].sort_values('Posted_Date')
+            # Convert Posted_Date to datetime for proper comparison
+            if 'Posted_Date' in df_copy.columns:
+                try:
+                    df_copy['Posted_Date'] = pd.to_datetime(df_copy['Posted_Date'], errors='coerce')
+                    print(f"Converted Posted_Date to datetime. Sample: {df_copy['Posted_Date'].head(3)}")
+                except Exception as e:
+                    print(f"Error converting Posted_Date: {e}")
+                    # If conversion fails, use index order as proxy for time
+                    df_copy['Posted_Date'] = df_copy.index
+            
+            # Debug information
+            print(f"Starting FIFO matching. Total rows: {len(df_copy)}")
+            
+            # Filter only stock transactions - use case-insensitive comparison to catch all variations
+            stock_buys = df_copy[df_copy['Type'].str.contains('Stock Buy', case=False, na=False)].copy()
+            stock_sells = df_copy[df_copy['Type'].str.contains('Stock Sell', case=False, na=False)].copy()
+            
+            print(f"Found {len(stock_buys)} stock buys and {len(stock_sells)} stock sells")
             
             # Track which rows should be marked as closed
             rows_to_close = []
@@ -255,8 +270,10 @@ def process_csv(df):
                     continue
                     
                 # Get buys and sells for this ticker
-                ticker_buys = stock_buys[stock_buys['Ticker'] == ticker].copy()
-                ticker_sells = stock_sells[stock_sells['Ticker'] == ticker].copy()
+                ticker_buys = stock_buys[stock_buys['Ticker'] == ticker].copy().sort_values('Posted_Date')
+                ticker_sells = stock_sells[stock_sells['Ticker'] == ticker].copy().sort_values('Posted_Date')
+                
+                print(f"Processing ticker {ticker}: {len(ticker_buys)} buys, {len(ticker_sells)} sells")
                 
                 # Skip if no pairs to match
                 if ticker_buys.empty or ticker_sells.empty:
@@ -268,15 +285,29 @@ def process_csv(df):
                 # Process each sell using FIFO
                 for sell_idx, sell_row in ticker_sells.iterrows():
                     sell_qty = abs(sell_row['Quantity'])
+                    sell_date = sell_row['Posted_Date']
+                    
+                    print(f"Processing sell {sell_idx}: qty={sell_qty}, date={sell_date}")
                     
                     # Find buys that happened before this sell
-                    eligible_buys = ticker_buys[
-                        (ticker_buys['Posted_Date'] < sell_row['Posted_Date']) & 
-                        (ticker_buys['Remaining_Qty'] > 0)
-                    ]
+                    # If dates are not valid, treat all buys as eligible
+                    if pd.isna(sell_date) or not isinstance(sell_date, pd.Timestamp):
+                        eligible_buys = ticker_buys[ticker_buys['Remaining_Qty'] > 0]
+                        print(f"Using all buys as eligible due to invalid sell date")
+                    else:
+                        eligible_buys = ticker_buys[
+                            (ticker_buys['Posted_Date'] <= sell_date) & 
+                            (ticker_buys['Remaining_Qty'] > 0)
+                        ]
+                        print(f"Found {len(eligible_buys)} eligible buys before {sell_date}")
                     
                     if eligible_buys.empty:
+                        print(f"No eligible buys found for sell {sell_idx}")
                         continue
+                    
+                    # Always mark the sell as closed if we found any eligible buys
+                    rows_to_close.append(sell_idx)
+                    print(f"Marking sell {sell_idx} as closed")
                     
                     # Match with buys using FIFO
                     remaining_sell_qty = sell_qty
@@ -288,6 +319,8 @@ def process_csv(df):
                         buy_remaining_qty = buy_row['Remaining_Qty']
                         matched_qty = min(remaining_sell_qty, buy_remaining_qty)
                         
+                        print(f"Matching buy {buy_idx}: qty={buy_remaining_qty}, matched={matched_qty}")
+                        
                         # Update the remaining quantity
                         ticker_buys.loc[buy_idx, 'Remaining_Qty'] -= matched_qty
                         remaining_sell_qty -= matched_qty
@@ -295,14 +328,13 @@ def process_csv(df):
                         # If buy is fully matched, mark it as closed
                         if ticker_buys.loc[buy_idx, 'Remaining_Qty'] <= 0:
                             rows_to_close.append(buy_idx)
-                    
-                    # If sell is matched (fully or partially), mark it as closed
-                    if remaining_sell_qty < sell_qty:
-                        rows_to_close.append(sell_idx)
+                            print(f"Marking buy {buy_idx} as closed (fully matched)")
             
             # Update the original dataframe with the closed status
+            print(f"Total rows to close: {len(rows_to_close)}")
             for idx in rows_to_close:
-                df.loc[idx, 'Status'] = 'Close'
+                if idx in df.index:
+                    df.loc[idx, 'Status'] = 'Close'
                 
             return df
         
