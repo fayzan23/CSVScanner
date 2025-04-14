@@ -237,6 +237,78 @@ def process_csv(df):
 
         processed_df['Status'] = processed_df.apply(determine_status, axis=1)
 
+        # Implement FIFO matching for Stock Buy/Sell pairs
+        def match_stock_transactions(df):
+            # Make a copy to avoid modifying the original during iteration
+            df_copy = df.copy()
+            
+            # Filter only stock transactions
+            stock_buys = df_copy[(df_copy['Type'] == 'Stock Buy')].sort_values('Posted_Date')
+            stock_sells = df_copy[(df_copy['Type'] == 'Stock Sell')].sort_values('Posted_Date')
+            
+            # Track which rows should be marked as closed
+            rows_to_close = []
+            
+            # Process each ticker separately
+            for ticker in df_copy['Ticker'].unique():
+                if pd.isna(ticker) or ticker == '':
+                    continue
+                    
+                # Get buys and sells for this ticker
+                ticker_buys = stock_buys[stock_buys['Ticker'] == ticker].copy()
+                ticker_sells = stock_sells[stock_sells['Ticker'] == ticker].copy()
+                
+                # Skip if no pairs to match
+                if ticker_buys.empty or ticker_sells.empty:
+                    continue
+                
+                # Track remaining quantities for each buy
+                ticker_buys['Remaining_Qty'] = ticker_buys['Quantity'].abs()
+                
+                # Process each sell using FIFO
+                for sell_idx, sell_row in ticker_sells.iterrows():
+                    sell_qty = abs(sell_row['Quantity'])
+                    
+                    # Find buys that happened before this sell
+                    eligible_buys = ticker_buys[
+                        (ticker_buys['Posted_Date'] < sell_row['Posted_Date']) & 
+                        (ticker_buys['Remaining_Qty'] > 0)
+                    ]
+                    
+                    if eligible_buys.empty:
+                        continue
+                    
+                    # Match with buys using FIFO
+                    remaining_sell_qty = sell_qty
+                    
+                    for buy_idx, buy_row in eligible_buys.iterrows():
+                        if remaining_sell_qty <= 0:
+                            break
+                            
+                        buy_remaining_qty = buy_row['Remaining_Qty']
+                        matched_qty = min(remaining_sell_qty, buy_remaining_qty)
+                        
+                        # Update the remaining quantity
+                        ticker_buys.loc[buy_idx, 'Remaining_Qty'] -= matched_qty
+                        remaining_sell_qty -= matched_qty
+                        
+                        # If buy is fully matched, mark it as closed
+                        if ticker_buys.loc[buy_idx, 'Remaining_Qty'] <= 0:
+                            rows_to_close.append(buy_idx)
+                    
+                    # If sell is matched (fully or partially), mark it as closed
+                    if remaining_sell_qty < sell_qty:
+                        rows_to_close.append(sell_idx)
+            
+            # Update the original dataframe with the closed status
+            for idx in rows_to_close:
+                df.loc[idx, 'Status'] = 'Close'
+                
+            return df
+        
+        # Apply FIFO matching to update Status
+        processed_df = match_stock_transactions(processed_df)
+
         # Fill NaN values in processed columns
         processed_df = processed_df.fillna({
             'Posted_Date': '',
