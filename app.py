@@ -247,8 +247,8 @@ def process_csv(df):
 
         processed_df['Status'] = processed_df.apply(determine_status, axis=1)
 
-        # Implement FIFO matching for Stock Buy/Sell pairs
-        def match_stock_transactions(df):
+        # Implement FIFO matching for stock and option transactions
+        def match_transactions(df):
             # Make a copy to avoid modifying the original during iteration
             df_copy = df.copy()
             
@@ -265,16 +265,16 @@ def process_csv(df):
             # Debug information
             print(f"Starting FIFO matching. Total rows: {len(df_copy)}")
             
-            # Filter only stock transactions - use case-insensitive comparison to catch all variations
+            # Track which rows should be marked as closed
+            rows_to_close = []
+            
+            # Part 1: Match stock transactions
             stock_buys = df_copy[df_copy['Type'].str.contains('Stock Buy', case=False, na=False)].copy()
             stock_sells = df_copy[df_copy['Type'].str.contains('Stock Sell', case=False, na=False)].copy()
             
             print(f"Found {len(stock_buys)} stock buys and {len(stock_sells)} stock sells")
             
-            # Track which rows should be marked as closed
-            rows_to_close = []
-            
-            # Process each ticker separately
+            # Process each ticker separately for stocks
             for ticker in df_copy['Ticker'].unique():
                 if pd.isna(ticker) or ticker == '':
                     continue
@@ -283,7 +283,7 @@ def process_csv(df):
                 ticker_buys = stock_buys[stock_buys['Ticker'] == ticker].copy().sort_values('Posted_Date')
                 ticker_sells = stock_sells[stock_sells['Ticker'] == ticker].copy().sort_values('Posted_Date')
                 
-                print(f"Processing ticker {ticker}: {len(ticker_buys)} buys, {len(ticker_sells)} sells")
+                print(f"Processing stock ticker {ticker}: {len(ticker_buys)} buys, {len(ticker_sells)} sells")
                 
                 # Skip if no pairs to match
                 if ticker_buys.empty or ticker_sells.empty:
@@ -297,7 +297,7 @@ def process_csv(df):
                     sell_qty = abs(sell_row['Quantity'])
                     sell_date = sell_row['Posted_Date']
                     
-                    print(f"Processing sell {sell_idx}: qty={sell_qty}, date={sell_date}")
+                    print(f"Processing stock sell {sell_idx}: qty={sell_qty}, date={sell_date}")
                     
                     # Find buys that happened before this sell
                     # If dates are not valid, treat all buys as eligible
@@ -340,6 +340,174 @@ def process_csv(df):
                             rows_to_close.append(buy_idx)
                             print(f"Marking buy {buy_idx} as closed (fully matched)")
             
+            # Part 2: Match Put option transactions
+            put_buys = df_copy[df_copy['Type'].str.contains('Put Buy', case=False, na=False)].copy()
+            put_sells = df_copy[df_copy['Type'].str.contains('Put Sell', case=False, na=False)].copy()
+            
+            print(f"Found {len(put_buys)} put buys and {len(put_sells)} put sells")
+            
+            # For options, we need to match by ticker, expiry, strike price, and option type
+            for ticker in df_copy['Ticker'].unique():
+                if pd.isna(ticker) or ticker == '':
+                    continue
+                
+                # Get all put buys and sells for this ticker
+                ticker_put_buys = put_buys[put_buys['Ticker'] == ticker].copy()
+                ticker_put_sells = put_sells[put_sells['Ticker'] == ticker].copy()
+                
+                if ticker_put_buys.empty or ticker_put_sells.empty:
+                    continue
+                
+                # For each unique expiry date and strike price, match buys and sells
+                for expiry in ticker_put_buys['Expiry'].unique():
+                    if pd.isna(expiry) or expiry == '':
+                        continue
+                        
+                    for strike in ticker_put_buys['Strike'].unique():
+                        if pd.isna(strike) or strike == 0:
+                            continue
+                            
+                        # Get buys and sells for this specific option (ticker, expiry, strike)
+                        option_buys = ticker_put_buys[
+                            (ticker_put_buys['Expiry'] == expiry) & 
+                            (ticker_put_buys['Strike'] == strike)
+                        ].copy().sort_values('Posted_Date')
+                        
+                        option_sells = ticker_put_sells[
+                            (ticker_put_sells['Expiry'] == expiry) & 
+                            (ticker_put_sells['Strike'] == strike)
+                        ].copy().sort_values('Posted_Date')
+                        
+                        if option_buys.empty or option_sells.empty:
+                            continue
+                            
+                        print(f"Processing option {ticker} {expiry} ${strike} Put: {len(option_buys)} buys, {len(option_sells)} sells")
+                        
+                        # Track remaining quantities for each buy
+                        option_buys['Remaining_Qty'] = option_buys['Quantity'].abs()
+                        
+                        # Process each sell using FIFO
+                        for sell_idx, sell_row in option_sells.iterrows():
+                            sell_qty = abs(sell_row['Quantity'])
+                            sell_date = sell_row['Posted_Date']
+                            
+                            # Find buys that happened before this sell
+                            if pd.isna(sell_date) or not isinstance(sell_date, pd.Timestamp):
+                                eligible_buys = option_buys[option_buys['Remaining_Qty'] > 0]
+                            else:
+                                eligible_buys = option_buys[
+                                    (option_buys['Posted_Date'] <= sell_date) & 
+                                    (option_buys['Remaining_Qty'] > 0)
+                                ]
+                            
+                            if eligible_buys.empty:
+                                continue
+                                
+                            # Always mark the sell as closed if we found any eligible buys
+                            rows_to_close.append(sell_idx)
+                            
+                            # Match with buys using FIFO
+                            remaining_sell_qty = sell_qty
+                            
+                            for buy_idx, buy_row in eligible_buys.iterrows():
+                                if remaining_sell_qty <= 0:
+                                    break
+                                    
+                                buy_remaining_qty = buy_row['Remaining_Qty']
+                                matched_qty = min(remaining_sell_qty, buy_remaining_qty)
+                                
+                                # Update the remaining quantity
+                                option_buys.loc[buy_idx, 'Remaining_Qty'] -= matched_qty
+                                remaining_sell_qty -= matched_qty
+                                
+                                # If buy is fully matched, mark it as closed
+                                if option_buys.loc[buy_idx, 'Remaining_Qty'] <= 0:
+                                    rows_to_close.append(buy_idx)
+            
+            # Part 3: Match Call option transactions (similar to puts)
+            call_buys = df_copy[df_copy['Type'].str.contains('Call Buy', case=False, na=False)].copy()
+            call_sells = df_copy[df_copy['Type'].str.contains('Call Sell', case=False, na=False)].copy()
+            
+            print(f"Found {len(call_buys)} call buys and {len(call_sells)} call sells")
+            
+            # For each unique ticker
+            for ticker in df_copy['Ticker'].unique():
+                if pd.isna(ticker) or ticker == '':
+                    continue
+                
+                # Get all call buys and sells for this ticker
+                ticker_call_buys = call_buys[call_buys['Ticker'] == ticker].copy()
+                ticker_call_sells = call_sells[call_sells['Ticker'] == ticker].copy()
+                
+                if ticker_call_buys.empty or ticker_call_sells.empty:
+                    continue
+                
+                # For each unique expiry date and strike price, match buys and sells
+                for expiry in ticker_call_buys['Expiry'].unique():
+                    if pd.isna(expiry) or expiry == '':
+                        continue
+                        
+                    for strike in ticker_call_buys['Strike'].unique():
+                        if pd.isna(strike) or strike == 0:
+                            continue
+                            
+                        # Get buys and sells for this specific option (ticker, expiry, strike)
+                        option_buys = ticker_call_buys[
+                            (ticker_call_buys['Expiry'] == expiry) & 
+                            (ticker_call_buys['Strike'] == strike)
+                        ].copy().sort_values('Posted_Date')
+                        
+                        option_sells = ticker_call_sells[
+                            (ticker_call_sells['Expiry'] == expiry) & 
+                            (ticker_call_sells['Strike'] == strike)
+                        ].copy().sort_values('Posted_Date')
+                        
+                        if option_buys.empty or option_sells.empty:
+                            continue
+                            
+                        print(f"Processing option {ticker} {expiry} ${strike} Call: {len(option_buys)} buys, {len(option_sells)} sells")
+                        
+                        # Track remaining quantities for each buy
+                        option_buys['Remaining_Qty'] = option_buys['Quantity'].abs()
+                        
+                        # Process each sell using FIFO
+                        for sell_idx, sell_row in option_sells.iterrows():
+                            sell_qty = abs(sell_row['Quantity'])
+                            sell_date = sell_row['Posted_Date']
+                            
+                            # Find buys that happened before this sell
+                            if pd.isna(sell_date) or not isinstance(sell_date, pd.Timestamp):
+                                eligible_buys = option_buys[option_buys['Remaining_Qty'] > 0]
+                            else:
+                                eligible_buys = option_buys[
+                                    (option_buys['Posted_Date'] <= sell_date) & 
+                                    (option_buys['Remaining_Qty'] > 0)
+                                ]
+                            
+                            if eligible_buys.empty:
+                                continue
+                                
+                            # Always mark the sell as closed if we found any eligible buys
+                            rows_to_close.append(sell_idx)
+                            
+                            # Match with buys using FIFO
+                            remaining_sell_qty = sell_qty
+                            
+                            for buy_idx, buy_row in eligible_buys.iterrows():
+                                if remaining_sell_qty <= 0:
+                                    break
+                                    
+                                buy_remaining_qty = buy_row['Remaining_Qty']
+                                matched_qty = min(remaining_sell_qty, buy_remaining_qty)
+                                
+                                # Update the remaining quantity
+                                option_buys.loc[buy_idx, 'Remaining_Qty'] -= matched_qty
+                                remaining_sell_qty -= matched_qty
+                                
+                                # If buy is fully matched, mark it as closed
+                                if option_buys.loc[buy_idx, 'Remaining_Qty'] <= 0:
+                                    rows_to_close.append(buy_idx)
+            
             # Update the original dataframe with the closed status
             print(f"Total rows to close: {len(rows_to_close)}")
             for idx in rows_to_close:
@@ -348,8 +516,8 @@ def process_csv(df):
                 
             return df
         
-        # Apply FIFO matching to update Status
-        processed_df = match_stock_transactions(processed_df)
+        # Apply FIFO matching to update Status for stocks and options
+        processed_df = match_transactions(processed_df)
 
         # Fill NaN values in processed columns
         processed_df = processed_df.fillna({
