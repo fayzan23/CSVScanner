@@ -100,12 +100,17 @@ def determine_status(row):
     # Auto-close logic for options and stocks: 
     # 1. Mark expired, assigned, and dividend transactions as Close
     # 2. Check if option has expired based on expiry date
-    # 3. The FIFO matching function below will auto-close stock buys/sells
-    action = str(row['Action']).strip()
+    # 3. Mark Buy to Close and Sell to Close actions as Close
+    # 4. The FIFO matching function below will auto-close stock buys/sells
+    action = str(row['Action']).strip().lower()
     type_val = str(row['Type']).strip()
     
     # Mark expired, assigned, and dividend transactions as Close
     if type_val in ['Expired', 'Assigned', 'Dividend']:
+        return 'Close'
+    
+    # Mark Buy to Close and Sell to Close actions as Close
+    if 'to close' in action or action in ['buy to close', 'sell to close']:
         return 'Close'
     
     # Check if option has expired
@@ -255,12 +260,17 @@ def process_csv(df):
             # Auto-close logic for options and stocks: 
             # 1. Mark expired, assigned, and dividend transactions as Close
             # 2. Check if option has expired based on expiry date
-            # 3. The FIFO matching function below will auto-close stock buys/sells
-            action = str(row['Action']).strip()
+            # 3. Mark Buy to Close and Sell to Close actions as Close
+            # 4. The FIFO matching function below will auto-close stock buys/sells
+            action = str(row['Action']).strip().lower()
             type_val = str(row['Type']).strip()
             
             # Mark expired, assigned, and dividend transactions as Close
             if type_val in ['Expired', 'Assigned', 'Dividend']:
+                return 'Close'
+            
+            # Mark Buy to Close and Sell to Close actions as Close
+            if 'to close' in action or action in ['buy to close', 'sell to close']:
                 return 'Close'
             
             # Check if option has expired
