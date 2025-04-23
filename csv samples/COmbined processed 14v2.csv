@@ -1,0 +1,109 @@
+Posted_Date,Transaction_Date,Action,Ticker,Expiry,Strike,Option_Type,Type,Quantity,Price,Fees & Com,Amount,Status,Protective Puts
+4/22/25,4/22/25,Sell to Open,AAPL,4/25/25,180,Put,Expired,2,0.9,0.54,0,Close,No
+4/22/25,4/22/25,Sell to Open,AAPL,4/25/25,212.5,Call,Call Sell,2,0.43,0.53,85.47,Open,No
+4/22/25,4/22/25,Sell to Open,WDAY,4/25/25,225,Call,Call Sell,2,2.32,0.54,463.46,Open,No
+4/22/25,4/22/25,Sell to Open,XLF,5/2/25,49,Call,Call Sell,4,0.2,1.05,78.95,Open,No
+4/22/25,4/22/25,Sell to Open,XOM,5/2/25,115,Call,Call Sell,3,0.51,0.79,152.21,Open,No
+4/22/25,4/22/25,Sell to Open,INTC,5/2/25,23.5,Call,Call Sell,10,0.16,2.64,157.36,Open,No
+4/22/25,4/22/25,Sell to Open,AVGO,4/25/25,172.5,Call,Call Sell,4,2.5,1.08,998.92,Open,No
+4/21/25,4/21/25,Sell to Open,MCD,5/2/25,280,Put,Put Sell,2,1.06,0.54,211.46,Open,No
+4/21/25,4/21/25,Sell to Open,GBTC,5/16/25,75,Call,Call Sell,4,1.6,1.07,638.93,Open,No
+4/21/25,4/21/25,Sell to Open,CAT,4/25/25,302.5,Call,Call Sell,2,0.72,0.53,143.47,Open,No
+4/21/25,4/21/25,Sell to Open,AVGO,4/25/25,147,Put,Put Sell,2,0.66,0.53,131.47,Open,No
+4/21/25,4/21/25,Sell to Open,TOL,5/2/25,86,Put,Put Sell,1,1.1,0.26,109.74,Open,No
+4/21/25,4/21/25,Sell to Open,ORCL,4/25/25,135,Call,Call Sell,4,0.32,1.05,126.95,Open,No
+4/21/25,4/21/25,Sell to Open,NVDA,4/25/25,90,Put,Put Sell,2,0.82,0.53,163.47,Open,No
+4/21/25,4/21/25,Sell to Open,AAPL,4/25/25,180,Put,Put Sell,2,0.9,0.54,179.46,Close,No
+4/21/25,4/17/25,Expired,DE,4/17/25,372.5,Put,Expired,1,0,0,0,Close,No
+4/21/25,4/17/25,Expired,TOL,4/17/25,86,Put,Expired,3,0,0,0,Close,No
+4/21/25,4/17/25,Expired,ORCL,4/17/25,124,Put,Expired,2,0,0,0,Close,No
+4/21/25,4/17/25,Expired,NVDA,4/17/25,84,Put,Expired,2,0,0,0,Close,No
+4/21/25,4/17/25,Expired,AVGO,4/17/25,139,Put,Expired,2,0,0,0,Close,No
+4/21/25,4/17/25,Expired,XOM,4/17/25,116,Call,Expired,3,0,0,0,Close,No
+4/21/25,4/17/25,Expired,XLF,4/17/25,52.5,Call,Expired,4,0,0,0,Close,No
+4/21/25,4/17/25,Expired,INTC,4/17/25,23.5,Call,Expired,10,0,0,0,Close,No
+4/21/25,4/17/25,Expired,CAT,4/17/25,312.5,Call,Expired,2,0,0,0,Close,No
+4/21/25,4/17/25,Expired,AVGO,4/17/25,187.5,Call,Expired,4,0,0,0,Close,No
+4/21/25,4/17/25,Expired,AAPL,4/17/25,212.5,Call,Expired,2,0,0,0,Close,No
+4/21/25,4/17/25,Expired,WDAY,4/17/25,240,Call,Expired,4,0,0,0,Close,No
+4/21/25,4/17/25,Expired,GBTC,4/17/25,72,Call,Expired,4,0,0,0,Close,No
+4/21/25,4/17/25,Expired,CMI,4/17/25,280,Put,Expired,2,0,0,0,Close,No
+4/21/25,4/17/25,Expired,HD,4/17/25,265,Put,Expired,1,0,0,0,Close,No
+4/21/25,4/17/25,Expired,HD,4/17/25,315,Put,Expired,2,0,0,0,Close,No
+4/21/25,4/17/25,Expired,MCD,4/17/25,300,Put,Expired,2,0,0,0,Close,No
+4/21/25,4/17/25,Expired,MCD,4/17/25,290,Put,Expired,2,0,0,0,Close,No
+4/21/25,4/17/25,Expired,CAT,4/17/25,310,Call,Expired,4,0,0,0,Close,No
+4/21/25,4/17/25,Expired,CVX,4/17/25,125,Put,Expired,2,0,0,0,Close,No
+4/21/25,4/17/25,Expired,ORCL,4/17/25,115,Put,Expired,2,0,0,0,Close,No
+4/21/25,4/17/25,Expired,ORCL,4/17/25,140,Call,Expired,2,0,0,0,Close,No
+4/21/25,4/17/25,Expired,ORCL,4/17/25,135,Call,Expired,2,0,0,0,Close,No
+4/21/25,4/17/25,Expired,VDE,4/17/25,110,Put,Expired,-2,0,0,0,Close,No
+4/21/25,4/17/25,Expired,NVDA,4/17/25,95,Put,Expired,5,0,0,0,Close,No
+4/21/25,4/17/25,Expired,AMD,4/17/25,75,Put,Expired,2,0,0,0,Close,No
+4/21/25,4/17/25,Expired,EXPE,4/17/25,170,Call,Expired,2,0,0,0,Close,No
+4/21/25,4/17/25,Expired,AVGO,4/17/25,130,Put,Expired,2,0,0,0,Close,No
+4/21/25,4/17/25,Expired,AVGO,4/17/25,165,Put,Expired,2,0,0,0,Close,No
+4/21/25,4/17/25,Expired,AMD,4/17/25,85,Put,Expired,2,0,0,0,Close,No
+4/21/25,4/17/25,Sell,AAPL,,0,,Stock Sell,1000,225,6.43,224993.57,Open,No
+4/21/25,4/17/25,Sell,AAPL,,0,,Stock Sell,2000,235,13.4,469986.6,Open,No
+4/21/25,4/17/25,Sell,AAPL,,0,,Stock Sell,100,230,0.66,22999.34,Open,No
+4/21/25,4/17/25,Sell,VFMO,,0,,Stock Sell,100,152,0.44,15199.56,Open,No
+4/17/25,4/17/25,Sell to Open,CAT,4/25/25,310,Call,Call Sell,2,0.78,0.53,155.47,Open,No
+4/17/25,4/17/25,Sell to Open,AMD,4/25/25,79,Put,Put Sell,2,0.51,0.53,101.47,Open,No
+4/17/25,4/17/25,Sell to Open,NVDA,4/25/25,105,Call,Call Sell,2,1.6,0.54,319.46,Open,No
+4/15/25,4/15/25,Sell to Open,AVGO,4/17/25,187.5,Call,Call Sell,4,0.68,1.06,270.94,Close,No
+4/15/25,4/15/25,Sell to Open,WDAY,4/17/25,240,Call,Call Sell,4,0.82,1.06,326.94,Close,No
+4/14/25,4/14/25,Sell to Open,CAT,4/17/25,310,Call,Call Sell,4,0.94,1.06,374.94,Close,No
+4/14/25,4/14/25,Sell to Open,ORCL,4/17/25,135,Call,Call Sell,2,2.3,0.54,459.46,Close,No
+4/14/25,4/14/25,Sell to Open,ORCL,4/17/25,124,Put,Put Sell,2,0.35,0.53,69.47,Close,No
+4/14/25,4/14/25,Sell to Open,ORCL,4/17/25,140,Call,Call Sell,2,0.85,0.53,169.47,Close,No
+4/14/25,4/14/25,Sell to Open,MCD,4/17/25,300,Put,Put Sell,2,0.43,0.53,85.47,Close,No
+4/14/25,4/14/25,Sell to Open,INTC,4/25/25,24.5,Call,Call Sell,10,0.25,2.65,247.35,Open,No
+4/14/25,4/14/25,Sell to Open,CVX,4/17/25,125,Put,Put Sell,2,0.38,0.53,75.47,Close,No
+4/14/25,4/14/25,Sell to Open,CAT,4/17/25,312.5,Call,Call Sell,2,0.91,0.54,181.46,Close,No
+4/14/25,4/14/25,Sell to Open,AVGO,4/17/25,165,Put,Put Sell,2,1.15,0.54,229.46,Close,No
+4/14/25,4/14/25,Sell to Open,AMD,4/17/25,85,Put,Put Sell,2,0.44,0.53,87.47,Close,No
+4/14/25,4/11/25,Sell,DE,,0,,Stock Sell,100,445,1.26,44498.74,Open,No
+4/14/25,4/11/25,Sell,AVGO,,0,,Stock Sell,200,172.5,0.99,34499.01,Open,No
+4/14/25,4/11/25,Buy,CAT,,0,,Stock Buy,200,300,0,-60000,Open,No
+4/14/25,4/11/25,Buy,XOM,,0,,Stock Buy,300,115,0,-34500,Open,No
+4/14/25,4/11/25,Buy,ORCL,,0,,Stock Buy,200,135,0,-27000,Open,No
+4/14/25,4/11/25,Expired,AVGO,4/11/25,115,Put,Expired,2,0,0,0,Close,No
+4/14/25,4/11/25,Expired,ORCL,4/11/25,162.5,Call,Expired,3,0,0,0,Close,No
+4/14/25,4/11/25,Expired,NVDA,4/11/25,102,Put,Expired,2,0,0,0,Close,No
+4/14/25,4/11/25,Expired,TOL,4/11/25,90,Put,Expired,3,0,0,0,Close,No
+4/14/25,4/11/25,Expired,NVDA,4/11/25,80,Put,Expired,2,0,0,0,Close,No
+4/14/25,4/11/25,Expired,HD,4/11/25,290,Put,Expired,1,0,0,0,Close,No
+4/14/25,4/11/25,Expired,DE,4/11/25,360,Put,Expired,1,0,0,0,Close,No
+4/14/25,4/11/25,Expired,CVX,4/11/25,135,Put,Expired,1,0,0,0,Close,No
+4/14/25,4/11/25,Expired,CVX,4/11/25,120,Put,Expired,1,0,0,0,Close,No
+4/14/25,4/11/25,Expired,CAT,4/11/25,250,Put,Expired,2,0,0,0,Close,No
+4/14/25,4/11/25,Expired,ORCL,4/11/25,100,Put,Expired,2,0,0,0,Close,No
+4/14/25,4/11/25,Expired,MCD,4/11/25,280,Put,Expired,2,0,0,0,Close,No
+4/14/25,4/11/25,Expired,MCD,4/11/25,295,Put,Expired,2,0,0,0,Close,No
+4/14/25,4/11/25,Expired,DE,4/11/25,430,Put,Expired,1,0,0,0,Close,No
+4/14/25,4/11/25,Expired,DE,4/11/25,415,Put,Expired,1,0,0,0,Close,No
+4/14/25,4/11/25,Expired,AMD,4/11/25,92,Put,Expired,2,0,0,0,Close,No
+4/14/25,4/11/25,Expired,AAPL,4/11/25,210,Call,Expired,2,0,0,0,Close,No
+4/14/25,4/11/25,Assigned,DE,4/11/25,445,Call,Assigned,1,0,0,0,Close,No
+4/14/25,4/11/25,Assigned,AVGO,4/11/25,172.5,Call,Assigned,2,0,0,0,Close,No
+4/14/25,4/11/25,Assigned,CAT,4/11/25,300,Put,Assigned,2,0,0,0,Close,No
+4/14/25,4/11/25,Assigned,XOM,4/11/25,115,Put,Assigned,3,0,0,0,Close,No
+4/14/25,4/11/25,Assigned,ORCL,4/11/25,135,Put,Assigned,2,0,0,0,Close,No
+4/11/25,4/11/25,Buy to Open,NVDA,9/18/26,110,Put,Put Buy,4,22.5,1.04,-9001.04,Open,Yes
+4/11/25,4/11/25,Sell to Open,NVDA,4/17/25,95,Put,Put Sell,5,0.66,1.32,328.68,Close,No
+4/11/25,4/11/25,Sell to Open,TOL,4/17/25,86,Put,Put Sell,3,0.95,0.8,284.2,Close,No
+4/11/25,4/11/25,Sell to Open,ORCL,4/17/25,115,Put,Put Sell,2,0.66,0.53,131.47,Close,No
+4/11/25,4/11/25,Sell to Open,AAPL,4/17/25,212.5,Call,Call Sell,2,1.42,0.54,283.46,Close,No
+4/11/25,4/11/25,Sell to Open,DE,4/17/25,372.5,Put,Put Sell,1,1.2,0.26,119.74,Close,No
+4/11/25,4/11/25,Buy to Open,CMCSA,6/18/26,32.5,Put,Put Buy,12,3.75,3.13,-4503.13,Open,Yes
+4/11/25,4/11/25,Sell to Close,CMCSA,4/17/25,35,Put,Put Sell,12,1.81,3.22,2168.78,Close,No
+4/11/25,4/11/25,Sell to Open,AVGO,4/17/25,130,Put,Put Sell,2,0.47,0.53,93.47,Close,No
+4/11/25,4/11/25,Sell to Open,AMD,4/17/25,75,Put,Put Sell,2,0.7,0.53,139.47,Close,No
+4/11/25,4/11/25,Buy to Close,AAPL,4/11/25,160,Put,Put Buy,2,0.01,0.02,-2.02,Close,No
+4/11/25,4/11/25,Buy to Close,AAPL,4/11/25,155,Put,Put Buy,5,0.01,0.05,-5.05,Close,No
+4/11/25,4/11/25,Buy to Close,AAPL,4/11/25,235,Call,Call Buy,2,0.01,0.02,-2.02,Close,No
+4/10/25,4/10/25,Sell to Open,NVDA,4/17/25,84,Put,Put Sell,2,0.4,0.53,79.47,Close,No
+4/10/25,4/10/25,Sell to Open,AVGO,4/17/25,139,Put,Put Sell,2,0.59,0.53,117.47,Close,No
+4/10/25,4/10/25,Sell to Open,AAPL,4/11/25,155,Put,Put Sell,5,0.09,1.31,43.69,Close,No
+4/9/25,4/9/25,Sell to Open,HD,4/17/25,315,Put,Put Sell,2,1.46,0.54,291.46,Close,No

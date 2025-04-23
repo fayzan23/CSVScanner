@@ -555,6 +555,17 @@ def process_csv(df):
             'Status': 'Open'  # Default status is Open
         })
 
+        # Add Protective Puts column
+        def determine_protective_put(row):
+            # If Action = "Buy to Open", Type = "Put Buy", and Status = "Open", then mark as "Yes"
+            if ('buy to open' in str(row['Action']).lower() and 
+                'put buy' in str(row['Type']).lower() and 
+                str(row['Status']).lower() == 'open'):
+                return 'Yes'
+            return 'No'
+        
+        processed_df['Protective Puts'] = processed_df.apply(determine_protective_put, axis=1)
+
         # Organize columns with Status at the end
         columns = [
             'Posted_Date', 'Transaction_Date',
@@ -562,7 +573,8 @@ def process_csv(df):
             'Ticker', 'Expiry', 'Strike', 'Option_Type',
             'Type',
             'Quantity', 'Price', 'Fees & Com', 'Amount',
-            'Status'  # Moved to the end
+            'Status',
+            'Protective Puts'  # Add the new column to the end
         ]
 
         # Remove Description column if it exists

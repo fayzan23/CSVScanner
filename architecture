@@ -1,0 +1,54 @@
+// CSV Scanner Architecture
+digraph {
+	rankdir=TB
+	node [fillcolor=lightblue shape=box style=filled]
+	edge [color="#666666"]
+	subgraph cluster_0 {
+		label="Client Layer"
+		web [label="Web Browser"]
+		mobile [label="Mobile Browser"]
+	}
+	subgraph cluster_1 {
+		label="EC2 Instance"
+		subgraph cluster_2 {
+			label="Application Layer"
+			nginx [label="Nginx
+Reverse Proxy"]
+			gunicorn [label="Gunicorn
+WSGI Server"]
+			flask [label="Flask
+Application"]
+		}
+		subgraph cluster_3 {
+			label="Data Processing Layer"
+			pandas [label="Pandas
+CSV Processor"]
+			bedrock [label="AWS Bedrock
+Integration"]
+		}
+		subgraph cluster_4 {
+			label="Storage Layer"
+			venv [label="Virtual
+Environment"]
+			env [label="Environment
+Variables"]
+		}
+	}
+	subgraph cluster_5 {
+		label="AWS Services"
+		aws_bedrock [label="AWS Bedrock"]
+		s3 [label="AWS S3"]
+		cloudwatch [label=CloudWatch]
+	}
+	web -> nginx
+	mobile -> nginx
+	nginx -> gunicorn
+	gunicorn -> flask
+	flask -> pandas
+	flask -> bedrock
+	bedrock -> aws_bedrock
+	pandas -> s3
+	flask -> venv
+	flask -> env
+	aws_bedrock -> cloudwatch
+}

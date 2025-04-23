@@ -1,0 +1,16 @@
+Posted_Date,Transaction_Date,Action,Ticker,Expiry,Strike,Option_Type,Type,Quantity,Price,Fees & Com,Amount,Status
+03/26/2025,03/26/2025,Sell to Open,QQQ,03/28/2025,480.0,Put,Put Sell,1,0.88,0.26,87.74,Close
+03/25/2025,03/25/2025,Sell to Open,QQQ,03/28/2025,485.0,Put,Put Sell,2,1.42,0.54,283.46,Close
+03/24/2025,03/21/2025,Expired,QQQ,03/21/2025,455.0,Put,Expired,2,0.0,0.0,0.0,Close
+03/20/2025,03/20/2025,Sell to Open,QQQ,03/28/2025,450.0,Put,Put Sell,2,0.8,0.53,159.47,Close
+03/18/2025,03/18/2025,Sell to Open,QQQ,03/28/2025,440.0,Put,Put Sell,2,0.86,0.53,171.47,Close
+03/17/2025,03/17/2025,Sell to Open,QQQ,03/21/2025,455.0,Put,Put Sell,2,0.56,0.53,111.47,Close
+03/14/2025,03/14/2025,Buy to Close,QQQ,03/14/2025,460.0,Put,Put Buy,4,0.02,0.04,-8.04,Close
+03/14/2025,03/14/2025,Buy to Close,QQQ,03/14/2025,450.0,Put,Put Buy,3,0.01,0.03,-3.03,Close
+03/12/2025,03/12/2025,Sell to Open,QQQ,03/28/2025,528.0,Call,Call Sell,13,0.18,3.44,230.56,Close
+03/10/2025,03/10/2025,Sell to Open,QQQ,03/14/2025,460.0,Put,Put Sell,4,2.88,1.08,1150.92,Close
+03/10/2025,03/07/2025,Expired,QQQ,03/07/2025,485.0,Put,Expired,5,0.0,0.0,0.0,Close
+03/10/2025,03/07/2025,Expired,QQQ,03/07/2025,528.0,Call,Expired,13,0.0,0.0,0.0,Close
+03/06/2025,03/06/2025,Sell to Open,QQQ,03/14/2025,450.0,Put,Put Sell,3,0.74,0.8,221.2,Close
+03/03/2025,03/03/2025,Sell to Open,QQQ,03/07/2025,528.0,Call,Call Sell,5,0.72,1.32,358.68,Close
+03/03/2025,02/28/2025,Expired,QQQ,02/28/2025,534.0,Call,Expired,8,0.0,0.0,0.0,Close
