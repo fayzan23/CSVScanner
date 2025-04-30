@@ -101,7 +101,8 @@ def determine_status(row):
     # 1. Mark expired, assigned, and dividend transactions as Close
     # 2. Check if option has expired based on expiry date
     # 3. Mark Buy to Close and Sell to Close actions as Close
-    # 4. The FIFO matching function below will auto-close stock buys/sells
+    # 4. Mark all stock sells as Close
+    # 5. The FIFO matching function below will auto-close stock buys
     action = str(row['Action']).strip().lower()
     type_val = str(row['Type']).strip()
     
@@ -111,6 +112,10 @@ def determine_status(row):
     
     # Mark Buy to Close and Sell to Close actions as Close
     if 'to close' in action or action in ['buy to close', 'sell to close']:
+        return 'Close'
+    
+    # Mark all stock sells as Close
+    if type_val == 'Stock Sell':
         return 'Close'
     
     # Check if option has expired
@@ -261,7 +266,8 @@ def process_csv(df):
             # 1. Mark expired, assigned, and dividend transactions as Close
             # 2. Check if option has expired based on expiry date
             # 3. Mark Buy to Close and Sell to Close actions as Close
-            # 4. The FIFO matching function below will auto-close stock buys/sells
+            # 4. Mark all stock sells as Close
+            # 5. The FIFO matching function below will auto-close stock buys
             action = str(row['Action']).strip().lower()
             type_val = str(row['Type']).strip()
             
@@ -271,6 +277,10 @@ def process_csv(df):
             
             # Mark Buy to Close and Sell to Close actions as Close
             if 'to close' in action or action in ['buy to close', 'sell to close']:
+                return 'Close'
+            
+            # Mark all stock sells as Close
+            if type_val == 'Stock Sell':
                 return 'Close'
             
             # Check if option has expired
@@ -285,6 +295,9 @@ def process_csv(df):
         def match_transactions(df):
             # Make a copy to avoid modifying the original during iteration
             df_copy = df.copy()
+            
+            # Add exceptions column
+            df_copy['Exceptions'] = 'No'
             
             # Convert Posted_Date to datetime for proper comparison
             if 'Posted_Date' in df_copy.columns:
@@ -321,6 +334,10 @@ def process_csv(df):
                 
                 # Skip if no pairs to match
                 if ticker_buys.empty or ticker_sells.empty:
+                    # Mark sells without matching buys as exceptions
+                    if not ticker_sells.empty:
+                        for sell_idx, _ in ticker_sells.iterrows():
+                            df_copy.loc[sell_idx, 'Exceptions'] = 'Yes'
                     continue
                 
                 # Track remaining quantities for each buy
@@ -346,12 +363,10 @@ def process_csv(df):
                         print(f"Found {len(eligible_buys)} eligible buys before {sell_date}")
                     
                     if eligible_buys.empty:
-                        print(f"No eligible buys found for sell {sell_idx}")
+                        # Mark sell without matching buys as exception
+                        df_copy.loc[sell_idx, 'Exceptions'] = 'Yes'
+                        print(f"No eligible buys found for sell {sell_idx} - marking as exception")
                         continue
-                    
-                    # Always mark the sell as closed if we found any eligible buys
-                    rows_to_close.append(sell_idx)
-                    print(f"Marking sell {sell_idx} as closed")
                     
                     # Match with buys using FIFO
                     remaining_sell_qty = sell_qty
@@ -373,6 +388,11 @@ def process_csv(df):
                         if ticker_buys.loc[buy_idx, 'Remaining_Qty'] <= 0:
                             rows_to_close.append(buy_idx)
                             print(f"Marking buy {buy_idx} as closed (fully matched)")
+                    
+                    # If sell quantity wasn't fully matched, mark as exception
+                    if remaining_sell_qty > 0:
+                        df_copy.loc[sell_idx, 'Exceptions'] = 'Yes'
+                        print(f"Sell {sell_idx} not fully matched - marking as exception")
             
             # Part 2: Match Put option transactions
             put_buys = df_copy[df_copy['Type'].str.contains('Put Buy', case=False, na=False)].copy()
