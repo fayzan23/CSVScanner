@@ -298,8 +298,6 @@ def process_csv(df):
             
             # Add exceptions column
             df_copy['Exceptions'] = 'No'
-            # Add matched quantity column
-            df_copy['Matched_Qty'] = 0
             
             # Convert Transaction_Date to datetime for proper comparison
             if 'Transaction_Date' in df_copy.columns:
@@ -344,7 +342,6 @@ def process_csv(df):
                 
                 # Track remaining quantities for each buy
                 ticker_buys['Remaining_Qty'] = ticker_buys['Quantity'].abs()
-                ticker_buys['Matched_Qty'] = 0
                 
                 # Process each sell using FIFO
                 for sell_idx, sell_row in ticker_sells.iterrows():
@@ -383,20 +380,14 @@ def process_csv(df):
                         
                         print(f"Matching buy {buy_idx}: qty={buy_remaining_qty}, matched={matched_qty}")
                         
-                        # Update the remaining quantity and matched quantity
+                        # Update the remaining quantity
                         ticker_buys.loc[buy_idx, 'Remaining_Qty'] -= matched_qty
-                        ticker_buys.loc[buy_idx, 'Matched_Qty'] += matched_qty
                         remaining_sell_qty -= matched_qty
-                        
-                        # Update the original dataframe with matched quantity
-                        df_copy.loc[buy_idx, 'Matched_Qty'] = ticker_buys.loc[buy_idx, 'Matched_Qty']
                         
                         # If buy is fully matched, mark it as closed
                         if ticker_buys.loc[buy_idx, 'Remaining_Qty'] <= 0:
                             rows_to_close.append(buy_idx)
                             print(f"Marking buy {buy_idx} as closed (fully matched)")
-                        else:
-                            print(f"Buy {buy_idx} partially matched: {ticker_buys.loc[buy_idx, 'Matched_Qty']} of {buy_row['Quantity']}")
                     
                     # If sell quantity wasn't fully matched, mark as exception
                     if remaining_sell_qty > 0:
