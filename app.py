@@ -574,7 +574,54 @@ def process_csv(df):
                 return 'Yes'
             return 'No'
         
-        processed_df['Protective Puts'] = processed_df.apply(determine_protective_put, axis=1)
+        processed_df['Protective_Put'] = processed_df.apply(determine_protective_put, axis=1)
+
+        # Add Strategy column with robust Collar open/close detection
+        def identify_strategies(df):
+            df = df.copy()
+            df['Strategy'] = ''
+            # Step 1: Find Collar openings
+            collar_openings = []
+            for (ticker, date), group in df.groupby(['Ticker', 'Transaction_Date']):
+                stock_buys = group[(group['Type'] == 'Stock Buy')]
+                put_buys = group[(group['Type'] == 'Put Buy') & (group['Action'].str.contains('buy to open', case=False, na=False))]
+                call_sells = group[(group['Type'] == 'Call Sell') & (group['Action'].str.contains('sell to open', case=False, na=False))]
+                if len(stock_buys) >= 1 and len(put_buys) >= 1 and len(call_sells) >= 1:
+                    # Mark all as Collar Start
+                    idxs = stock_buys.index.tolist() + put_buys.index.tolist() + call_sells.index.tolist()
+                    df.loc[idxs, 'Strategy'] = 'Collar Start'
+                    # Store details for closing leg detection
+                    for _, put_row in put_buys.iterrows():
+                        for _, call_row in call_sells.iterrows():
+                            collar_openings.append({
+                                'ticker': ticker,
+                                'open_date': date,
+                                'put_expiry': put_row['Expiry'],
+                                'put_strike': put_row['Strike'],
+                                'call_expiry': call_row['Expiry'],
+                                'call_strike': call_row['Strike']
+                            })
+            # Step 2: Find Collar closings
+            for collar in collar_openings:
+                stock_sells = df[(df['Ticker'] == collar['ticker']) &
+                                 (df['Type'] == 'Stock Sell') &
+                                 (pd.to_datetime(df['Transaction_Date']) > pd.to_datetime(collar['open_date']))]
+                put_sells = df[(df['Ticker'] == collar['ticker']) &
+                               (df['Type'] == 'Put Sell') &
+                               (df['Action'].str.contains('sell to close', case=False, na=False)) &
+                               (df['Expiry'] == collar['put_expiry']) &
+                               (df['Strike'] == collar['put_strike']) &
+                               (pd.to_datetime(df['Transaction_Date']) > pd.to_datetime(collar['open_date']))]
+                call_buys = df[(df['Ticker'] == collar['ticker']) &
+                               (df['Type'] == 'Call Buy') &
+                               (df['Action'].str.contains('buy to close', case=False, na=False)) &
+                               (df['Expiry'] == collar['call_expiry']) &
+                               (df['Strike'] == collar['call_strike']) &
+                               (pd.to_datetime(df['Transaction_Date']) > pd.to_datetime(collar['open_date']))]
+                for idx in stock_sells.index.tolist() + put_sells.index.tolist() + call_buys.index.tolist():
+                    df.loc[idx, 'Strategy'] = 'Collar Close'
+            return df['Strategy']
+        processed_df['Strategy'] = identify_strategies(processed_df)
 
         # Organize columns with Status at the end
         columns = [
@@ -584,7 +631,8 @@ def process_csv(df):
             'Type',
             'Quantity', 'Price', 'Fees & Com', 'Amount',
             'Status',
-            'Protective Puts'  # Add the new column to the end
+            'Protective_Put',
+            'Strategy'  # Add the new column to the end
         ]
 
         # Remove Description column if it exists
