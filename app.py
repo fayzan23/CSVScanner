@@ -283,15 +283,18 @@ def process_csv(df):
             if type_val == 'Stock Sell':
                 return 'Close'
 
-            # Check if option has expired or if it's past 4:00 PM EST on expiry date
+            # Check if option has expired or expires today after 4:00 PM EST
             if pd.notna(row['Expiry']):
                 expiry_date = pd.to_datetime(row['Expiry'])
                 current_time = pd.Timestamp.now(tz='America/New_York')
-                # Check if past expiry date or if it's expiry day after 4 PM EST
-                if expiry_date.date() < current_time.date() or (
-                    expiry_date.date() == current_time.date() and
-                    current_time.hour >= 16
-                ):
+                
+                # Check if option has expired
+                if expiry_date < current_time.normalize():  # normalize() removes time component
+                    return 'Close'
+                    
+                # Check if option expires today and it's past 4:00 PM EST
+                if (expiry_date.date() == current_time.date() and 
+                    current_time.hour >= 16):  # 16:00 = 4:00 PM
                     return 'Close'
 
             return 'Open'
