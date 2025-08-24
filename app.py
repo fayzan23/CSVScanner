@@ -22,15 +22,15 @@ def check_rate_limit():
     """Check if we're within rate limits"""
     global request_timestamps
     current_time = datetime.now()
-    
+
     # Remove timestamps older than our period
-    request_timestamps = [ts for ts in request_timestamps 
+    request_timestamps = [ts for ts in request_timestamps
                         if current_time - ts < timedelta(seconds=RATE_LIMIT_PERIOD)]
-    
+
     # Check if we're at the limit
     if len(request_timestamps) >= MAX_REQUESTS:
         return False
-    
+
     # Add current timestamp and return True
     request_timestamps.append(current_time)
     return True
@@ -43,26 +43,26 @@ try:
         aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
         aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY')
     )
-    
+
     print("AWS Configuration:")
     print(f"Region: us-east-2")
     print(f"Agent ID: {os.getenv('BEDROCK_AGENT_ID')}")
     print(f"Agent Alias ID: {os.getenv('BEDROCK_AGENT_ALIAS_ID')}")
-    
+
     # Verify the agent exists
     def verify_agent():
         try:
             agent_id = os.getenv('BEDROCK_AGENT_ID')
             agent_alias_id = os.getenv('BEDROCK_AGENT_ALIAS_ID')
-            
+
             if not agent_id or not agent_alias_id:
                 print("Missing Agent ID or Alias ID")
                 return False
-            
+
             print(f"\nAttempting to verify agent:")
             print(f"Agent ID: {agent_id}")
             print(f"Agent Alias ID: {agent_alias_id}")
-            
+
             # Try to invoke agent with a simple test
             response = bedrock.invoke_agent(
                 agentId=agent_id,
@@ -70,16 +70,16 @@ try:
                 sessionId='test-session',
                 inputText='test'
             )
-            
+
             print("Successfully connected to Bedrock agent")
             return True
-            
+
         except Exception as e:
             error_message = str(e)
             print("\nAgent Verification Error:")
             print(f"Error Type: {type(e).__name__}")
             print(f"Error Message: {error_message}")
-            
+
             if 'ResourceNotFoundException' in error_message:
                 print("\nPossible issues:")
                 print("1. Agent ID or Alias ID might be incorrect")
@@ -89,7 +89,7 @@ try:
                 print("\nPossible issues:")
                 print("1. AWS credentials might not have proper permissions")
                 print("2. IAM role might need bedrock:InvokeAgent permission")
-            
+
             return False
 
 except Exception as e:
@@ -97,7 +97,7 @@ except Exception as e:
     bedrock = None
 
 def determine_status(row):
-    # Auto-close logic for options and stocks: 
+    # Auto-close logic for options and stocks:
     # 1. Mark expired, assigned, and dividend transactions as Close
     # 2. Check if option has expired based on expiry date
     # 3. Mark Buy to Close and Sell to Close actions as Close
@@ -105,23 +105,23 @@ def determine_status(row):
     # 5. The FIFO matching function below will auto-close stock buys
     action = str(row['Action']).strip().lower()
     type_val = str(row['Type']).strip()
-    
+
     # Mark expired, assigned, and dividend transactions as Close
     if type_val in ['Expired', 'Assigned', 'Dividend']:
         return 'Close'
-    
+
     # Mark Buy to Close and Sell to Close actions as Close
     if 'to close' in action or action in ['buy to close', 'sell to close']:
         return 'Close'
-    
+
     # Mark all stock sells as Close
     if type_val == 'Stock Sell':
         return 'Close'
-    
+
     # Check if option has expired
     if pd.notna(row['Expiry']) and pd.to_datetime(row['Expiry']) < pd.Timestamp.now():
         return 'Close'
-        
+
     return 'Open'
 
 def process_csv(df):
@@ -207,13 +207,13 @@ def process_csv(df):
 
         # Filter out transactions with specified action types
         excluded_actions = [
-            'MoneyLink Transfer', 
-            'Credit Interest', 
+            'MoneyLink Transfer',
+            'Credit Interest',
             'Exchange',
             'Exercise',
-            'Margin Interest', 
-            'Options Frwd Split', 
-            'Reinvest Shares', 
+            'Margin Interest',
+            'Options Frwd Split',
+            'Reinvest Shares',
             'Qual Div Reinvest'
         ]
         action_count_before = len(processed_df)
@@ -262,7 +262,7 @@ def process_csv(df):
 
         # Create Status column with new rules
         def determine_status(row):
-            # Auto-close logic for options and stocks: 
+            # Auto-close logic for options and stocks:
             # 1. Mark expired, assigned, and dividend transactions as Close
             # 2. Check if option has expired based on expiry date
             # 3. Mark Buy to Close and Sell to Close actions as Close
@@ -270,23 +270,30 @@ def process_csv(df):
             # 5. The FIFO matching function below will auto-close stock buys
             action = str(row['Action']).strip().lower()
             type_val = str(row['Type']).strip()
-            
+
             # Mark expired, assigned, and dividend transactions as Close
             if type_val in ['Expired', 'Assigned', 'Dividend']:
                 return 'Close'
-            
+
             # Mark Buy to Close and Sell to Close actions as Close
             if 'to close' in action or action in ['buy to close', 'sell to close']:
                 return 'Close'
-            
+
             # Mark all stock sells as Close
             if type_val == 'Stock Sell':
                 return 'Close'
-            
-            # Check if option has expired
-            if pd.notna(row['Expiry']) and pd.to_datetime(row['Expiry']) < pd.Timestamp.now():
-                return 'Close'
-                
+
+            # Check if option has expired or if it's past 4:00 PM EST on expiry date
+            if pd.notna(row['Expiry']):
+                expiry_date = pd.to_datetime(row['Expiry'])
+                current_time = pd.Timestamp.now(tz='America/New_York')
+                # Check if past expiry date or if it's expiry day after 4 PM EST
+                if expiry_date.date() < current_time.date() or (
+                    expiry_date.date() == current_time.date() and
+                    current_time.hour >= 16
+                ):
+                    return 'Close'
+
             return 'Open'
 
         processed_df['Status'] = processed_df.apply(determine_status, axis=1)
@@ -295,10 +302,10 @@ def process_csv(df):
         def match_transactions(df):
             # Make a copy to avoid modifying the original during iteration
             df_copy = df.copy()
-            
+
             # Add exceptions column
             df_copy['Exceptions'] = 'No'
-            
+
             # Convert Transaction_Date to datetime for proper comparison
             if 'Transaction_Date' in df_copy.columns:
                 try:
@@ -308,30 +315,30 @@ def process_csv(df):
                     print(f"Error converting Transaction_Date: {e}")
                     # If conversion fails, use index order as proxy for time
                     df_copy['Transaction_Date'] = df_copy.index
-            
+
             # Debug information
             print(f"Starting FIFO matching. Total rows: {len(df_copy)}")
-            
+
             # Track which rows should be marked as closed
             rows_to_close = []
-            
+
             # Part 1: Match stock transactions
             stock_buys = df_copy[df_copy['Type'].str.contains('Stock Buy', case=False, na=False)].copy()
             stock_sells = df_copy[df_copy['Type'].str.contains('Stock Sell', case=False, na=False)].copy()
-            
+
             print(f"Found {len(stock_buys)} stock buys and {len(stock_sells)} stock sells")
-            
+
             # Process each ticker separately for stocks
             for ticker in df_copy['Ticker'].unique():
                 if pd.isna(ticker) or ticker == '':
                     continue
-                    
+
                 # Get buys and sells for this ticker
                 ticker_buys = stock_buys[stock_buys['Ticker'] == ticker].copy().sort_values('Transaction_Date')
                 ticker_sells = stock_sells[stock_sells['Ticker'] == ticker].copy().sort_values('Transaction_Date')
-                
+
                 print(f"Processing stock ticker {ticker}: {len(ticker_buys)} buys, {len(ticker_sells)} sells")
-                
+
                 # Skip if no pairs to match
                 if ticker_buys.empty or ticker_sells.empty:
                     # Mark sells without matching buys as exceptions
@@ -339,17 +346,17 @@ def process_csv(df):
                         for sell_idx, _ in ticker_sells.iterrows():
                             df_copy.loc[sell_idx, 'Exceptions'] = 'Yes'
                     continue
-                
+
                 # Track remaining quantities for each buy
                 ticker_buys['Remaining_Qty'] = ticker_buys['Quantity'].abs()
-                
+
                 # Process each sell using FIFO
                 for sell_idx, sell_row in ticker_sells.iterrows():
                     sell_qty = abs(sell_row['Quantity'])
                     sell_date = sell_row['Transaction_Date']
-                    
+
                     print(f"Processing stock sell {sell_idx}: qty={sell_qty}, date={sell_date}")
-                    
+
                     # Find buys that happened before this sell
                     # If dates are not valid, treat all buys as eligible
                     if pd.isna(sell_date) or not isinstance(sell_date, pd.Timestamp):
@@ -357,199 +364,199 @@ def process_csv(df):
                         print(f"Using all buys as eligible due to invalid sell date")
                     else:
                         eligible_buys = ticker_buys[
-                            (ticker_buys['Transaction_Date'] <= sell_date) & 
+                            (ticker_buys['Transaction_Date'] <= sell_date) &
                             (ticker_buys['Remaining_Qty'] > 0)
                         ]
                         print(f"Found {len(eligible_buys)} eligible buys before {sell_date}")
-                    
+
                     if eligible_buys.empty:
                         # Mark sell without matching buys as exception
                         df_copy.loc[sell_idx, 'Exceptions'] = 'Yes'
                         print(f"No eligible buys found for sell {sell_idx} - marking as exception")
                         continue
-                    
+
                     # Match with buys using FIFO
                     remaining_sell_qty = sell_qty
-                    
+
                     for buy_idx, buy_row in eligible_buys.iterrows():
                         if remaining_sell_qty <= 0:
                             break
-                            
+
                         buy_remaining_qty = buy_row['Remaining_Qty']
                         matched_qty = min(remaining_sell_qty, buy_remaining_qty)
-                        
+
                         print(f"Matching buy {buy_idx}: qty={buy_remaining_qty}, matched={matched_qty}")
-                        
+
                         # Update the remaining quantity
                         ticker_buys.loc[buy_idx, 'Remaining_Qty'] -= matched_qty
                         remaining_sell_qty -= matched_qty
-                        
+
                         # If buy is fully matched, mark it as closed
                         if ticker_buys.loc[buy_idx, 'Remaining_Qty'] <= 0:
                             rows_to_close.append(buy_idx)
                             print(f"Marking buy {buy_idx} as closed (fully matched)")
-                    
+
                     # If sell quantity wasn't fully matched, mark as exception
                     if remaining_sell_qty > 0:
                         df_copy.loc[sell_idx, 'Exceptions'] = 'Yes'
                         print(f"Sell {sell_idx} not fully matched - marking as exception")
-            
+
             # Part 2: Match Put option transactions
             put_buys = df_copy[df_copy['Type'].str.contains('Put Buy', case=False, na=False)].copy()
             put_sells = df_copy[df_copy['Type'].str.contains('Put Sell', case=False, na=False)].copy()
-            
+
             print(f"Found {len(put_buys)} put buys and {len(put_sells)} put sells")
-            
+
             # For options, we need to match by ticker, expiry, strike price, and option type
             for ticker in df_copy['Ticker'].unique():
                 if pd.isna(ticker) or ticker == '':
                     continue
-                
+
                 # Get all put buys and sells for this ticker
                 ticker_put_buys = put_buys[put_buys['Ticker'] == ticker].copy()
                 ticker_put_sells = put_sells[put_sells['Ticker'] == ticker].copy()
-                
+
                 if ticker_put_buys.empty or ticker_put_sells.empty:
                     continue
-                
+
                 # For each unique expiry date and strike price, match buys and sells
                 for expiry in ticker_put_buys['Expiry'].unique():
                     if pd.isna(expiry) or expiry == '':
                         continue
-                        
+
                     for strike in ticker_put_buys['Strike'].unique():
                         if pd.isna(strike) or strike == 0:
                             continue
-                            
+
                         # Get buys and sells for this specific option (ticker, expiry, strike)
                         option_buys = ticker_put_buys[
-                            (ticker_put_buys['Expiry'] == expiry) & 
+                            (ticker_put_buys['Expiry'] == expiry) &
                             (ticker_put_buys['Strike'] == strike)
                         ].copy().sort_values('Transaction_Date')
-                        
+
                         option_sells = ticker_put_sells[
-                            (ticker_put_sells['Expiry'] == expiry) & 
+                            (ticker_put_sells['Expiry'] == expiry) &
                             (ticker_put_sells['Strike'] == strike)
                         ].copy().sort_values('Transaction_Date')
-                        
+
                         if option_buys.empty or option_sells.empty:
                             continue
-                            
+
                         print(f"Processing option {ticker} {expiry} ${strike} Put: {len(option_buys)} buys, {len(option_sells)} sells")
-                        
+
                         # Track remaining quantities for each buy
                         option_buys['Remaining_Qty'] = option_buys['Quantity'].abs()
-                        
+
                         # Process each sell using FIFO
                         for sell_idx, sell_row in option_sells.iterrows():
                             sell_qty = abs(sell_row['Quantity'])
                             sell_date = sell_row['Transaction_Date']
-                            
+
                             # Find buys that happened before this sell
                             if pd.isna(sell_date) or not isinstance(sell_date, pd.Timestamp):
                                 eligible_buys = option_buys[option_buys['Remaining_Qty'] > 0]
                             else:
                                 eligible_buys = option_buys[
-                                    (option_buys['Transaction_Date'] <= sell_date) & 
+                                    (option_buys['Transaction_Date'] <= sell_date) &
                                     (option_buys['Remaining_Qty'] > 0)
                                 ]
-                            
+
                             if eligible_buys.empty:
                                 continue
-                                
+
                             # Always mark the sell as closed if we found any eligible buys
                             rows_to_close.append(sell_idx)
-            
+
             # Part 3: Match Call option transactions (similar to puts)
             call_buys = df_copy[df_copy['Type'].str.contains('Call Buy', case=False, na=False)].copy()
             call_sells = df_copy[df_copy['Type'].str.contains('Call Sell', case=False, na=False)].copy()
-            
+
             print(f"Found {len(call_buys)} call buys and {len(call_sells)} call sells")
-            
+
             # For each unique ticker
             for ticker in df_copy['Ticker'].unique():
                 if pd.isna(ticker) or ticker == '':
                     continue
-                
+
                 # Get all call buys and sells for this ticker
                 ticker_call_buys = call_buys[call_buys['Ticker'] == ticker].copy()
                 ticker_call_sells = call_sells[call_sells['Ticker'] == ticker].copy()
-                
+
                 if ticker_call_buys.empty or ticker_call_sells.empty:
                     continue
-                
+
                 # For each unique expiry date and strike price, match buys and sells
                 for expiry in ticker_call_buys['Expiry'].unique():
                     if pd.isna(expiry) or expiry == '':
                         continue
-                        
+
                     for strike in ticker_call_buys['Strike'].unique():
                         if pd.isna(strike) or strike == 0:
                             continue
-                            
+
                         # Get buys and sells for this specific option (ticker, expiry, strike)
                         option_buys = ticker_call_buys[
-                            (ticker_call_buys['Expiry'] == expiry) & 
+                            (ticker_call_buys['Expiry'] == expiry) &
                             (ticker_call_buys['Strike'] == strike)
                         ].copy().sort_values('Transaction_Date')
-                        
+
                         option_sells = ticker_call_sells[
-                            (ticker_call_sells['Expiry'] == expiry) & 
+                            (ticker_call_sells['Expiry'] == expiry) &
                             (ticker_call_sells['Strike'] == strike)
                         ].copy().sort_values('Transaction_Date')
-                        
+
                         if option_buys.empty or option_sells.empty:
                             continue
-                            
+
                         print(f"Processing option {ticker} {expiry} ${strike} Call: {len(option_buys)} buys, {len(option_sells)} sells")
-                        
+
                         # Track remaining quantities for each buy
                         option_buys['Remaining_Qty'] = option_buys['Quantity'].abs()
-                        
+
                         # Process each sell using FIFO
                         for sell_idx, sell_row in option_sells.iterrows():
                             sell_qty = abs(sell_row['Quantity'])
                             sell_date = sell_row['Transaction_Date']
-                            
+
                             # Find buys that happened before this sell
                             if pd.isna(sell_date) or not isinstance(sell_date, pd.Timestamp):
                                 eligible_buys = option_buys[option_buys['Remaining_Qty'] > 0]
                             else:
                                 eligible_buys = option_buys[
-                                    (option_buys['Transaction_Date'] <= sell_date) & 
+                                    (option_buys['Transaction_Date'] <= sell_date) &
                                     (option_buys['Remaining_Qty'] > 0)
                                 ]
-                            
+
                             if eligible_buys.empty:
                                 continue
-                                
+
                             # Always mark the sell as closed if we found any eligible buys
                             rows_to_close.append(sell_idx)
-                            
+
                             # Match with buys using FIFO
                             remaining_sell_qty = sell_qty
-                            
+
                             for buy_idx, buy_row in eligible_buys.iterrows():
                                 if remaining_sell_qty <= 0:
                                     break
-                                    
+
                                 buy_remaining_qty = buy_row['Remaining_Qty']
                                 matched_qty = min(remaining_sell_qty, buy_remaining_qty)
-                                
+
                                 # Update the remaining quantity
                                 option_buys.loc[buy_idx, 'Remaining_Qty'] -= matched_qty
                                 remaining_sell_qty -= matched_qty
-                                
+
                                 # If buy is fully matched, mark it as closed
                                 if option_buys.loc[buy_idx, 'Remaining_Qty'] <= 0:
                                     rows_to_close.append(buy_idx)
-            
+
             # Mark rows as closed
             for idx in rows_to_close:
                 df_copy.loc[idx, 'Status'] = 'Close'
-            
+
             return df_copy
-        
+
         # Apply FIFO matching to update Status for stocks and options
         processed_df = match_transactions(processed_df)
 
@@ -568,12 +575,12 @@ def process_csv(df):
         # Add Protective Puts column
         def determine_protective_put(row):
             # If Action = "Buy to Open", Type = "Put Buy", and Status = "Open", then mark as "Yes"
-            if ('buy to open' in str(row['Action']).lower() and 
-                'put buy' in str(row['Type']).lower() and 
+            if ('buy to open' in str(row['Action']).lower() and
+                'put buy' in str(row['Type']).lower() and
                 str(row['Status']).lower() == 'open'):
                 return 'Yes'
             return 'No'
-        
+
         processed_df['Protective_Put'] = processed_df.apply(determine_protective_put, axis=1)
 
         # Add Strategy column with robust Collar open/close detection
@@ -587,10 +594,8 @@ def process_csv(df):
                 put_buys = group[(group['Type'] == 'Put Buy') & (group['Action'].str.contains('buy to open', case=False, na=False))]
                 call_sells = group[(group['Type'] == 'Call Sell') & (group['Action'].str.contains('sell to open', case=False, na=False))]
                 if len(stock_buys) >= 1 and len(put_buys) >= 1 and len(call_sells) >= 1:
-                    # Mark all as Collar Start
                     idxs = stock_buys.index.tolist() + put_buys.index.tolist() + call_sells.index.tolist()
                     df.loc[idxs, 'Strategy'] = 'Collar Start'
-                    # Store details for closing leg detection
                     for _, put_row in put_buys.iterrows():
                         for _, call_row in call_sells.iterrows():
                             collar_openings.append({
@@ -620,6 +625,60 @@ def process_csv(df):
                                (pd.to_datetime(df['Transaction_Date']) > pd.to_datetime(collar['open_date']))]
                 for idx in stock_sells.index.tolist() + put_sells.index.tolist() + call_buys.index.tolist():
                     df.loc[idx, 'Strategy'] = 'Collar Close'
+
+            # Step 3: Find Iron Condor openings
+            iron_condor_openings = []
+            for (ticker, expiry, date), group in df.groupby(['Ticker', 'Expiry', 'Transaction_Date']):
+                put_sells = group[(group['Type'] == 'Put Sell') & (group['Action'].str.contains('sell to open', case=False, na=False))]
+                put_buys = group[(group['Type'] == 'Put Buy') & (group['Action'].str.contains('buy to open', case=False, na=False))]
+                call_sells = group[(group['Type'] == 'Call Sell') & (group['Action'].str.contains('sell to open', case=False, na=False))]
+                call_buys = group[(group['Type'] == 'Call Buy') & (group['Action'].str.contains('buy to open', case=False, na=False))]
+                if len(put_sells) == 1 and len(put_buys) == 1 and len(call_sells) == 1 and len(call_buys) == 1:
+                    put_sell_strike = put_sells['Strike'].iloc[0]
+                    put_buy_strike = put_buys['Strike'].iloc[0]
+                    call_sell_strike = call_sells['Strike'].iloc[0]
+                    call_buy_strike = call_buys['Strike'].iloc[0]
+                    if (put_sell_strike > put_buy_strike and call_sell_strike < call_buy_strike):
+                        idxs = put_sells.index.tolist() + put_buys.index.tolist() + call_sells.index.tolist() + call_buys.index.tolist()
+                        df.loc[idxs, 'Strategy'] = 'Iron Condor Start'
+                        iron_condor_openings.append({
+                            'ticker': ticker,
+                            'expiry': expiry,
+                            'open_date': date,
+                            'put_sell_strike': put_sell_strike,
+                            'put_buy_strike': put_buy_strike,
+                            'call_sell_strike': call_sell_strike,
+                            'call_buy_strike': call_buy_strike
+                        })
+            # Step 4: Find Iron Condor closings
+            for condor in iron_condor_openings:
+                # Find matching closing legs after open date
+                put_buys_close = df[(df['Ticker'] == condor['ticker']) &
+                                    (df['Expiry'] == condor['expiry']) &
+                                    (df['Type'] == 'Put Buy') &
+                                    (df['Action'].str.contains('buy to close', case=False, na=False)) &
+                                    (df['Strike'] == condor['put_sell_strike']) &
+                                    (pd.to_datetime(df['Transaction_Date']) > pd.to_datetime(condor['open_date']))]
+                put_sells_close = df[(df['Ticker'] == condor['ticker']) &
+                                     (df['Expiry'] == condor['expiry']) &
+                                     (df['Type'] == 'Put Sell') &
+                                     (df['Action'].str.contains('sell to close', case=False, na=False)) &
+                                     (df['Strike'] == condor['put_buy_strike']) &
+                                     (pd.to_datetime(df['Transaction_Date']) > pd.to_datetime(condor['open_date']))]
+                call_buys_close = df[(df['Ticker'] == condor['ticker']) &
+                                     (df['Expiry'] == condor['expiry']) &
+                                     (df['Type'] == 'Call Buy') &
+                                     (df['Action'].str.contains('buy to close', case=False, na=False)) &
+                                     (df['Strike'] == condor['call_sell_strike']) &
+                                     (pd.to_datetime(df['Transaction_Date']) > pd.to_datetime(condor['open_date']))]
+                call_sells_close = df[(df['Ticker'] == condor['ticker']) &
+                                      (df['Expiry'] == condor['expiry']) &
+                                      (df['Type'] == 'Call Sell') &
+                                      (df['Action'].str.contains('sell to close', case=False, na=False)) &
+                                      (df['Strike'] == condor['call_buy_strike']) &
+                                      (pd.to_datetime(df['Transaction_Date']) > pd.to_datetime(condor['open_date']))]
+                idxs = put_buys_close.index.tolist() + put_sells_close.index.tolist() + call_buys_close.index.tolist() + call_sells_close.index.tolist()
+                df.loc[idxs, 'Strategy'] = 'Iron Condor Close'
             return df['Strategy']
         processed_df['Strategy'] = identify_strategies(processed_df)
 
@@ -712,20 +771,20 @@ def query_data():
         data = request.json
         query = data.get('query')
         csv_data = data.get('csvData')
-        
+
         if not query or not csv_data:
             return jsonify({'error': 'Missing query or CSV data'}), 400
-        
+
         # Decode base64 CSV data
         csv_content = base64.b64decode(csv_data).decode('utf-8')
         df = pd.read_csv(StringIO(csv_content))
-        
+
         # Initialize Bedrock client
         bedrock = boto3.client(
             service_name='bedrock-agent-runtime',
             region_name='us-east-2'
         )
-        
+
         # Prepare the query for Bedrock
         response = bedrock.invoke_agent(
             agentId=os.getenv('BEDROCK_AGENT_ID'),
@@ -734,10 +793,10 @@ def query_data():
             inputText=query,
             enableTrace=True
         )
-        
+
         # Parse the response
         response_body = json.loads(response['completion'])
-        
+
         return jsonify({
             'response': response_body['text'],
             'data': response_body.get('data', [])
