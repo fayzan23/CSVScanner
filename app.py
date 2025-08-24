@@ -288,12 +288,16 @@ def process_csv(df):
                 expiry_date = pd.to_datetime(row['Expiry'])
                 current_time = pd.Timestamp.now(tz='America/New_York')
                 
+                # Make expiry_date timezone-aware by localizing it to EST
+                if expiry_date.tz is None:
+                    expiry_date = expiry_date.tz_localize('America/New_York')
+
                 # Check if option has expired
                 if expiry_date < current_time.normalize():  # normalize() removes time component
                     return 'Close'
-                    
+
                 # Check if option expires today and it's past 4:00 PM EST
-                if (expiry_date.date() == current_time.date() and 
+                if (expiry_date.date() == current_time.date() and
                     current_time.hour >= 16):  # 16:00 = 4:00 PM
                     return 'Close'
 
